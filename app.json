@@ -1,15 +1,17 @@
 {
   "expo": {
-    "name": "famitui",
+    "name": "ファミつい",
     "slug": "famitui",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
+    "newArchEnabled": false,
     "ios": {
       "supportsTablet": true
     },
     "android": {
+       "package": "com.unicorn.famitui",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
