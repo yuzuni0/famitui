@@ -1,10 +1,11 @@
 import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, Text, View } from 'react-native';
+import { getApp } from '@react-native-firebase/app';
 
 export default function App() {
   return (
     <View style={styles.container}>
-      <Text>Open up App.tsx to start working on your app!</Text>
+      <Text>projectId: {getApp().options.projectId}</Text>
       <StatusBar style="auto" />
     </View>
   );

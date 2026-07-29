@@ -3,6 +3,8 @@
   "version": "1.0.0",
   "main": "index.ts",
   "dependencies": {
+    "@react-native-firebase/app": "^25.1.0",
+    "@react-native-firebase/auth": "^25.1.0",
     "expo": "~57.0.8",
     "expo-dev-client": "~57.0.9",
     "expo-status-bar": "~57.0.1",
