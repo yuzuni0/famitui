@@ -1,0 +1,200 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    //補助関数
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isSelf(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function isMember(familyId) {
+      return signedIn()
+        && exists(/databases/$(database)/documents/families/$(familyId)/members/$(request.auth.uid));
+    }
+
+    //変更しようとしているフィールドの集合
+    function changed() {
+      return request.resource.data.diff(resource.data).affectedKeys();
+    }
+
+    //値の検証
+
+    function validDisplayName(v) {
+      return v is string && v.size() > 0 && v.size() <= 20;
+    }
+
+    function validItemName(v) {
+      return v is string && v.size() > 0 && v.size() <= 50;
+    }
+
+    function validNote(v) {
+      return v is string && v.size() <= 200;
+    }
+
+    function validCategory(v) {
+      return v in ['dailyGoods', 'beverage', 'food', 'freshFood', 'stationery'];
+    }
+
+    function validTransportMode(v) {
+      return v in ['none', 'walk', 'bike', 'vehicle'];
+    }
+
+    function nullOrTimestamp(v) {
+      return v == null || v is timestamp;
+    }
+
+    function nullOrString(v, maxSize) {
+      return v == null || (v is string && v.size() <= maxSize);
+    }
+
+    //家から100kmを制限とする
+    function validMaxDistance(v) {
+      return v == null || (v is number && v > 0 && v <= 100000);
+    }
+
+    //以下の5つを満たすリストのみ許可する
+    function validAlternatives(v) {
+      return v is list && v.size() <= 5
+        && (v.size() < 1 || (v[0] is string && v[0].size() > 0 && v[0].size() <= 50))
+        && (v.size() < 2 || (v[1] is string && v[1].size() > 0 && v[1].size() <= 50))
+        && (v.size() < 3 || (v[2] is string && v[2].size() > 0 && v[2].size() <= 50))
+        && (v.size() < 4 || (v[3] is string && v[3].size() > 0 && v[3].size() <= 50))
+        && (v.size() < 5 || (v[4] is string && v[4].size() > 0 && v[4].size() <= 50));
+    }
+
+    //ユーザー情報(users)
+
+    match /users/{uid} {
+      allow get: if isSelf(uid);
+      allow list: if false;
+
+      allow create: if isSelf(uid)
+        && request.resource.data.keys().hasOnly(
+             ['displayName', 'familyId', 'createdTime'])
+        && request.resource.data.keys().hasAll(
+             ['displayName', 'familyId', 'createdTime'])
+        && validDisplayName(request.resource.data.displayName)
+        && request.resource.data.familyId == null
+        && request.resource.data.createdTime == request.time;
+
+      // familyId の変更は Cloud Functions のみ
+      // hasAll によって、許可フィールド自体の削除も拒否する
+      allow update: if isSelf(uid)
+        && changed().hasOnly(['displayName'])
+        && request.resource.data.keys().hasAll(
+             ['displayName', 'familyId', 'createdTime'])
+        && validDisplayName(request.resource.data.displayName);
+
+      allow delete: if false;
+    }
+
+    //招待コード(inviteCodes)
+
+    match /inviteCodes/{code} {
+      // 単体取得のみ。一覧を許可すると総当たりが不要になるため list は禁止
+      // App Check は導入しない方針（フェーズ1〜2 時点）
+      allow get: if signedIn();
+      allow list: if false;
+      allow write: if false;
+    }
+
+    //家族分け(families)
+
+    match /families/{familyId} {
+      allow get: if isMember(familyId);
+      allow list: if false;
+      allow write: if false;
+
+      //各家族メンバーmembers
+
+      match /members/{uid} {
+        allow read: if isMember(familyId);
+        allow create, delete: if false;
+
+        allow update: if isSelf(uid)
+          && changed().hasOnly([
+               'displayName',
+               'transportMode',
+               'transportModeExpireTime',
+               'busyUntilTime',
+               'busyLabel'])
+          && request.resource.data.keys().hasAll([
+               'displayName', 'transportMode', 'transportModeExpireTime',
+               'busyUntilTime', 'busyLabel'])
+          && validDisplayName(request.resource.data.displayName)
+          && validTransportMode(request.resource.data.transportMode)
+          && nullOrTimestamp(request.resource.data.transportModeExpireTime)
+          && nullOrTimestamp(request.resource.data.busyUntilTime)
+          && nullOrString(request.resource.data.busyLabel, 20);
+      }
+
+      //不足品(items)
+
+      match /items/{itemId} {
+        allow read: if isMember(familyId);
+
+        allow create: if isMember(familyId)
+          && request.resource.data.keys().hasOnly([
+               'itemName', 'category', 'status',
+               'alternativeItemNames', 'maxDistanceMeters', 'note',
+               'autoNotifyEnabled', 'creatorUserId', 'createdTime',
+               'requestedTime', 'requesterUserId', 'completedTime',
+               'activeAssignmentId', 'rejectedUserIds'])
+          && request.resource.data.keys().hasAll([
+               'itemName', 'category', 'status',
+               'alternativeItemNames', 'maxDistanceMeters', 'note',
+               'autoNotifyEnabled', 'creatorUserId', 'createdTime',
+               'requestedTime', 'requesterUserId', 'completedTime',
+               'activeAssignmentId', 'rejectedUserIds'])
+          && request.resource.data.creatorUserId == request.auth.uid
+          && request.resource.data.status == 'shortage'
+          && request.resource.data.createdTime == request.time
+          && request.resource.data.requestedTime == null
+          && request.resource.data.requesterUserId == null
+          && request.resource.data.completedTime == null
+          && request.resource.data.activeAssignmentId == null
+          && request.resource.data.rejectedUserIds == []
+          && validItemName(request.resource.data.itemName)
+          && validCategory(request.resource.data.category)
+          && validNote(request.resource.data.note)
+          && request.resource.data.autoNotifyEnabled is bool
+          && validMaxDistance(request.resource.data.maxDistanceMeters)
+          && validAlternatives(request.resource.data.alternativeItemNames);
+
+        //遷移状態の管理は Cloud Functions で行う
+        allow update: if isMember(familyId)
+          && changed().hasOnly([
+               'itemName', 'category', 'alternativeItemNames',
+               'maxDistanceMeters', 'note', 'autoNotifyEnabled'])
+          && request.resource.data.keys().hasAll([
+               'itemName', 'category', 'status',
+               'alternativeItemNames', 'maxDistanceMeters', 'note',
+               'autoNotifyEnabled', 'creatorUserId', 'createdTime',
+               'requestedTime', 'requesterUserId', 'completedTime',
+               'activeAssignmentId', 'rejectedUserIds'])
+          && validItemName(request.resource.data.itemName)
+          && validCategory(request.resource.data.category)
+          && validNote(request.resource.data.note)
+          && request.resource.data.autoNotifyEnabled is bool
+          && validMaxDistance(request.resource.data.maxDistanceMeters)
+          && validAlternatives(request.resource.data.alternativeItemNames);
+
+        allow delete: if isMember(familyId)
+          && resource.data.status == 'shortage';
+      }
+
+      //割り当て(assignments)
+
+      match /assignments/{assignmentId} {
+        allow read: if isMember(familyId);
+        allow write: if false;
+      }
+    }
+  }
+}
