@@ -16,6 +16,8 @@ module.exports = {
   parserOptions: {
     project: ["tsconfig.json", "tsconfig.dev.json"],
     sourceType: "module",
+    // ファイルの場所を(functions/)に固定する
+    tsconfigRootDir: __dirname,
   },
   ignorePatterns: [
     "/lib/**/*", // Ignore built files.
@@ -29,5 +31,8 @@ module.exports = {
     "quotes": ["error", "double"],
     "import/no-unresolved": 0,
     "indent": ["error", 2],
+    "object-curly-spacing": 0,
+    "require-jsdoc": 0,
+    "valid-jsdoc": 0,
   },
 };
