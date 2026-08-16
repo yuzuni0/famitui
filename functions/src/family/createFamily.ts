@@ -35,17 +35,16 @@ export const createFamily = onCall(async (request) => {
     );
   }
 
-  // 未使用の招待コードを取得する
-
-  // トランザクション外から取得する
-  const inviteCode = await issueUniqueInviteCode();
-
   // トランザクションでの書き込み
   const db = getFirestore();
-  const familyId = await db.runTransaction(async (tx) => {
+
+  const result = await db.runTransaction(async (tx) => {
     // ユーザー情報の取得( uid の familyId )
     const userRef = db.collection("users").doc(uid);
+
+    // 書き込みより前に全ての読み取りを終える
     const userSnapshot = await tx.get(userRef);
+    const inviteCodeRef = await issueUniqueInviteCode(db, tx);
 
     // ドキュメントが存在しない場合、undefined を返す
     const user = userSnapshot.data();
@@ -55,7 +54,8 @@ export const createFamily = onCall(async (request) => {
         "ユーザー情報が登録されていません。"
       );
     }
-    if (user.familyId !== null) {
+
+    if (typeof user.familyId === "string") {
       throw new HttpsError(
         "failed-precondition",
         "既に家族グループに所属しています。"
@@ -66,8 +66,10 @@ export const createFamily = onCall(async (request) => {
     const familyRef = db.collection("families").doc();
 
     // {familyId} を作成する
+
     tx.create(familyRef, {
       familyName,
+      inviteCode: inviteCodeRef.id,
       creatorUserId: uid,
       createdTime: FieldValue.serverTimestamp(),
     });
@@ -85,7 +87,7 @@ export const createFamily = onCall(async (request) => {
     });
 
     // {inviteCode}を作成する
-    tx.create(db.collection("inviteCodes").doc(inviteCode), {
+    tx.create(inviteCodeRef, {
       familyId: familyRef.id,
       creatorUserId: uid,
       createdTime: FieldValue.serverTimestamp(),
@@ -94,9 +96,9 @@ export const createFamily = onCall(async (request) => {
     // {uid} の familyId を更新する
     tx.update(userRef, { familyId: familyRef.id });
 
-    return familyRef.id;
+    return { familyId: familyRef.id, inviteCode: inviteCodeRef.id };
   });
 
   // 画面で招待コードを表示する
-  return { familyId, inviteCode };
+  return result;
 });

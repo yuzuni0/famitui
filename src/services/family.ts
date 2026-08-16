@@ -1,8 +1,12 @@
 import { getApp } from '@react-native-firebase/app';
+import { doc, getFirestore, onSnapshot } from '@react-native-firebase/firestore';
 import { getFunctions, httpsCallable } from '@react-native-firebase/functions';
-//家族グループの Cloud Functions の呼び出しを行う
+import type { FamilyDoc } from '../types/firestore';
+//家族グループの Cloud Functions の呼び出しと、families/{familyId} の読み取りを行う
 
 const REGION = 'asia-northeast1';
+
+const FAMILIES_COLLECTION = 'families';
 
 //CloudFunctions の関数名
 const CREATE_FAMILY = 'createFamily';
@@ -53,4 +57,22 @@ export async function joinFamily(inviteCode: string): Promise<JoinFamilyResult> 
   );
   const result = await callable({ inviteCode });
   return result.data;
+}
+
+//families/{familyId} の変化を監視する
+export function observeFamilyDoc(
+  familyId: string,
+  callback: (family: FamilyDoc | null) => void,
+  onError?: (error: Error) => void,
+): () => void {
+  return onSnapshot(
+    doc(getFirestore(), FAMILIES_COLLECTION, familyId),
+    snapshot => {
+      callback(snapshot.exists() ? (snapshot.data() as FamilyDoc) : null);
+    },
+    error => {
+      console.warn(`observeFamilyDoc failed: ${familyId}`, error);
+      onError?.(error);
+    },
+  );
 }

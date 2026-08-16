@@ -1,5 +1,9 @@
 import { randomInt } from "node:crypto";
-import { getFirestore } from "firebase-admin/firestore";
+import type {
+  DocumentReference,
+  Firestore,
+  Transaction,
+} from "firebase-admin/firestore";
 import { HttpsError } from "firebase-functions/https";
 
 // 招待コードに使う文字
@@ -24,20 +28,19 @@ export function generateInviteCode(): string {
   return code;
 }
 
-// 未使用の招待コードを返す。
 // 既存の招待コードと被ったとき、MAX_ATTEMPTS 回まで再生成を行う
-export async function issueUniqueInviteCode(): Promise<string> {
-  const db = getFirestore();
-
+export async function issueUniqueInviteCode(
+  db: Firestore,
+  tx: Transaction
+): Promise<DocumentReference> {
   for (let i = 0; i < MAX_ATTEMPTS; i++) {
-    const code = generateInviteCode();
-    const snapshot = await db
+    const inviteCodeRef = db
       .collection(INVITE_CODES_COLLECTION)
-      .doc(code)
-      .get();
+      .doc(generateInviteCode());
+    const snapshot = await tx.get(inviteCodeRef);
 
     if (!snapshot.exists) {
-      return code;
+      return inviteCodeRef;
     }
   }
 

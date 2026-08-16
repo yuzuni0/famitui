@@ -38,6 +38,8 @@ export type UserDoc = {
 //{familyId}
 export type FamilyDoc = {
   familyName: string;
+  //招待コード
+  inviteCode: string;
   creatorUserId: string;
   createdTime: Timestamp;
 };

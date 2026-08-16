@@ -32,12 +32,31 @@ export async function updateDisplayName(uid: string, displayName: string): Promi
   await updateDoc(userDocRef(uid), { displayName });
 }
 
+//users/{uid} の監視結果
+export type UserDocSnapshot =
+  | { status: 'found'; user: UserDoc }
+  | { status: 'missing' }
+  | { status: 'unknown' };
+
 //users/{uid} の変化を監視する
 export function observeUserDoc(
   uid: string,
-  callback: (user: UserDoc | null) => void,
+  callback: (snapshot: UserDocSnapshot) => void,
+  onError?: (error: Error) => void,
 ): () => void {
-  return onSnapshot(userDocRef(uid), snapshot => {//監視を終了する
-    callback(snapshot.exists() ? (snapshot.data() as UserDoc) : null);
-  });
+  return onSnapshot(
+    userDocRef(uid),
+    snapshot => {
+      if (snapshot.exists()) {
+        callback({ status: 'found', user: snapshot.data() as UserDoc });
+        return;
+      }
+
+      callback({ status: snapshot.metadata.fromCache ? 'unknown' : 'missing' });
+    },
+    error => {
+      console.warn(`observeUserDoc failed: ${uid}`, error);
+      onError?.(error);
+    },
+  );
 }

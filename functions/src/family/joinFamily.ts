@@ -45,6 +45,9 @@ export const joinFamily = onCall(async (request) => {
       throw new HttpsError("not-found", "招待コードが見つかりません。");
     }
     const joinFamilyId = invite.familyId;
+    if (typeof joinFamilyId !== "string") {
+      throw new HttpsError("not-found", "招待コードが見つかりません。");
+    }
 
     // ユーザー情報を検証し、displayName を取得する
     const user = userSnapshot.data();
@@ -54,28 +57,35 @@ export const joinFamily = onCall(async (request) => {
         "ユーザー情報が登録されていません。"
       );
     }
-    if (user.familyId !== null) {
+
+    if (typeof user.familyId === "string") {
       throw new HttpsError(
         "failed-precondition",
         "既に家族グループに所属しています。"
       );
     }
 
-    // {uid}を作成する
     const familyRef = db.collection("families").doc(joinFamilyId);
-    tx.create(
-      familyRef.collection("members").doc(uid),
-      {
-        displayName: user.displayName,
-        joinedTime: FieldValue.serverTimestamp(),
-        transportMode: "none",
-        transportModeExpireTime: null,
-        busyUntilTime: null,
-        busyLabel: null,
-        level: 1,
-        score: 0,
-      }
-    );
+    const memberRef = familyRef.collection("members").doc(uid);
+
+    // familyId をここで読み取る
+    const memberSnapshot = await tx.get(memberRef);
+
+    if (!memberSnapshot.exists) {
+      tx.create(
+        memberRef,
+        {
+          displayName: user.displayName,
+          joinedTime: FieldValue.serverTimestamp(),
+          transportMode: "none",
+          transportModeExpireTime: null,
+          busyUntilTime: null,
+          busyLabel: null,
+          level: 1,
+          score: 0,
+        }
+      );
+    }
 
     // {uid} の familyId を更新する
     tx.update(userRef, { familyId: joinFamilyId });

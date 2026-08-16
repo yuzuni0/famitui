@@ -5,16 +5,22 @@ import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import FamilySetupPage from '../pages/FamilySetupPage';
 import HomePage from '../pages/HomePage';
 import LoginPage from '../pages/LoginPage';
+import ProfileSetupPage from '../pages/ProfileSetupPage';
 import SignUpPage from '../pages/SignUpPage';
 import { observeAuthState } from '../services/auth';
 import { observeUserDoc } from '../services/user';
-import type { UserDoc } from '../types/firestore';
+import type { UserDocSnapshot } from '../services/user';
 
 
 //未ログインのスタック
 export type AuthStackParamList = {
   Login: undefined;
   SignUp: undefined;
+};
+
+//ユーザー情報が未登録のスタック
+export type ProfileSetupStackParamList = {
+  ProfileSetup: undefined;
 };
 
 //家族に未所属のスタック
@@ -28,6 +34,7 @@ export type MainStackParamList = {
 };
 
 const AuthStack = createNativeStackNavigator<AuthStackParamList>();
+const ProfileSetupStack = createNativeStackNavigator<ProfileSetupStackParamList>();
 const FamilySetupStack = createNativeStackNavigator<FamilySetupStackParamList>();
 const MainStack = createNativeStackNavigator<MainStackParamList>();
 
@@ -43,12 +50,12 @@ function LoadingScreen() {
 export default function RootNavigator() {
 
   const [uid, setUid] = useState<string | null>(null);//uid
-  const [userDoc, setUserDoc] = useState<UserDoc | null>(null);//uidの中身
+  const [userDoc, setUserDoc] = useState<UserDocSnapshot | null>(null);
   const [initializing, setInitializing] = useState(true);//判定中かどうか
 
   //ログイン状態を監視する
   useEffect(() => {
-    const unsubscribe = observeAuthState(nextUid => {//一度だけ呼ばれる
+    const unsubscribe = observeAuthState(nextUid => {//ログイン状態が変わった時に呼ぶ
       setUid(nextUid);
       setInitializing(false);
     });
@@ -83,11 +90,21 @@ export default function RootNavigator() {
     );
   }
 
-  if (userDoc === null) {
+  if (userDoc === null || userDoc.status === 'unknown') {
     return <LoadingScreen />;
   }
 
-  if (userDoc.familyId === null) {
+  if (userDoc.status === 'missing') {
+    return (
+      <ProfileSetupStack.Navigator>
+        <ProfileSetupStack.Screen name="ProfileSetup">
+          {() => <ProfileSetupPage uid={uid} />}
+        </ProfileSetupStack.Screen>
+      </ProfileSetupStack.Navigator>
+    );
+  }
+
+  if (userDoc.user.familyId === null) {
     return (
       <FamilySetupStack.Navigator>
         <FamilySetupStack.Screen name="FamilySetup" component={FamilySetupPage} />
@@ -95,9 +112,12 @@ export default function RootNavigator() {
     );
   }
 
+  const familyId = userDoc.user.familyId;
   return (
     <MainStack.Navigator>
-      <MainStack.Screen name="Home" component={HomePage} />
+      <MainStack.Screen name="Home">
+        {() => <HomePage familyId={familyId} />}
+      </MainStack.Screen>
     </MainStack.Navigator>
   );
 }
