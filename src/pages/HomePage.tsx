@@ -1,10 +1,15 @@
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { setStringAsync } from 'expo-clipboard';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Button, StyleSheet, Text, View } from 'react-native';
 
 import { errorMessage } from '../lib/errors';
+import type { MainStackParamList } from '../navigation/RootNavigator';
+import { signOut } from '../services/auth';
 import { observeFamilyDoc } from '../services/family';
 import type { FamilyDoc } from '../types/firestore';
+
 
 type Props = {
   familyId: string;
@@ -12,9 +17,13 @@ type Props = {
 
 export default function HomePage({ familyId }: Props) {
 
+  //ItemList画面に遷移するためのナビオブジェクトを取得
+  const navigation = useNavigation<NativeStackNavigationProp<MainStackParamList>>();
+
   const [family, setFamily] = useState<FamilyDoc | null>(null);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [signingOut, setSigningOut] = useState(false);
 
   useEffect(() => {
     setFamily(null);
@@ -38,6 +47,24 @@ export default function HomePage({ familyId }: Props) {
     } catch (copyError) {
       setCopied(false);
       setError(errorMessage(copyError));
+    }
+  }
+
+  //ログアウトする
+  async function handleSignOut() {
+    if (signingOut) {
+      return;
+    }
+
+    setError(null);
+    setSigningOut(true);
+    try {
+
+      //observeAuthState で変化を検知する
+      await signOut();
+    } catch (authError) {
+      setError(errorMessage(authError));
+      setSigningOut(false);
     }
   }
 
@@ -72,6 +99,18 @@ export default function HomePage({ familyId }: Props) {
       )}
 
       {error !== null && <Text style={styles.error}>{error}</Text>}
+
+      <Button
+        title="不足品の一覧"
+        onPress={() => navigation.navigate('ItemList')}
+        disabled={signingOut}
+      />
+
+      {signingOut ? (
+        <ActivityIndicator />
+      ) : (
+        <Button title="ログアウト" onPress={handleSignOut} />
+      )}
     </View>
   );
 }

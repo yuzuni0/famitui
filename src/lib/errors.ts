@@ -38,6 +38,12 @@ export function errorMessage(error: unknown): string {
     case 'internal':
       return '処理に失敗しました。時間をおいてもう一度お試しください。';
 
+    //Cloud Firestore のエラーコード
+    //Rules に拒否された場合に返る
+    case 'permission-denied':
+    case 'firestore/permission-denied':
+      return 'この操作を行う権限がありません。';
+
     default:
       return error instanceof Error ? error.message : String(error);
   }

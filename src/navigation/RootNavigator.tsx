@@ -4,6 +4,7 @@ import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
 import FamilySetupPage from '../pages/FamilySetupPage';
 import HomePage from '../pages/HomePage';
+import ItemListPage from '../pages/ItemListPage';
 import LoginPage from '../pages/LoginPage';
 import ProfileSetupPage from '../pages/ProfileSetupPage';
 import SignUpPage from '../pages/SignUpPage';
@@ -31,6 +32,7 @@ export type FamilySetupStackParamList = {
 //家族に所属済みのスタック
 export type MainStackParamList = {
   Home: undefined;
+  ItemList: undefined;
 };
 
 const AuthStack = createNativeStackNavigator<AuthStackParamList>();
@@ -117,6 +119,9 @@ export default function RootNavigator() {
     <MainStack.Navigator>
       <MainStack.Screen name="Home">
         {() => <HomePage familyId={familyId} />}
+      </MainStack.Screen>
+      <MainStack.Screen name="ItemList">
+        {() => <ItemListPage familyId={familyId} uid={uid} />}
       </MainStack.Screen>
     </MainStack.Navigator>
   );
