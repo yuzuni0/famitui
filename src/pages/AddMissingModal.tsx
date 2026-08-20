@@ -1,10 +1,14 @@
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useState } from 'react';
 import { Alert, Button, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View, } from 'react-native';
 import { errorMessage } from '../lib/errors';
-import { createItem, deleteItem, updateItem } from '../services/item';
+import type { MainStackParamList } from '../navigation/RootNavigator';
+import { createItem, deleteItem, isAssigned, isAssignedTo, isRequested, itemStateLabel, updateItem } from '../services/item';
 import type { CreateItemInput, ItemWithId } from '../services/item';
+import { cancelRequestItem, requestItem } from '../services/itemActions';
 import { CATEGORIES } from '../types/firestore';
-import type { CategoryId, ItemStatus } from '../types/firestore';
+import type { CategoryId } from '../types/firestore';
 
 //品目の追加と編集を行うモーダル
 
@@ -20,13 +24,6 @@ const NOTE_MAX_LENGTH = 200;
 const ALTERNATIVE_MAX_COUNT = 5;
 const ALTERNATIVE_NAME_MAX_LENGTH = 50;
 const MAX_DISTANCE_METERS = 100000;
-
-//状態の表示名
-const STATUS_LABELS: Record<ItemStatus, string> = {
-  requested: '依頼中',
-  shortage: '不足',
-  completed: '完了',
-};
 
 //カテゴリの id から表示名を取得する
 function categoryLabel(category: CategoryId): string {
@@ -52,6 +49,8 @@ type ValidationResult =
 
 export default function AddMissingModal({ familyId, uid, item, onClose }: Props) {
 
+  const navigation = useNavigation<NativeStackNavigationProp<MainStackParamList>>();
+
   const [editing, setEditing] = useState<boolean>(item === null);
 
   const [itemName, setItemName] = useState<string>(() => initialFormState(item).itemName);
@@ -75,9 +74,19 @@ export default function AddMissingModal({ familyId, uid, item, onClose }: Props)
   const [submitting, setSubmitting] = useState(false);
 
   //完了済みの品目は編集できない
-  const editable = item === null || item.status !== 'completed';
+  //担当が決まっている間は、担当している本人だけが編集できる
+  const editable =
+    item === null ||
+    (item.status !== 'completed' && (!isAssigned(item) || isAssignedTo(item, uid)));
 
-  const deletable = item !== null && item.status === 'shortage';
+  //依頼も担当も付いていない不足品だけを削除できる
+  const deletable =
+    item !== null && item.status !== 'completed' && !isRequested(item) && !isAssigned(item);
+
+  const switchable = item !== null && item.status !== 'completed' && !isAssigned(item);
+
+  //担当がまだ決まっていない品目だけを受け付けられる
+  const acceptable = item !== null && item.status !== 'completed' && !isAssigned(item);
 
   //入力欄を item の値へ戻す
   function resetForm() {
@@ -247,6 +256,39 @@ export default function AddMissingModal({ familyId, uid, item, onClose }: Props)
     }
   }
 
+  //不足と依頼の状態を切り替える
+  async function handleSwitchStatus() {
+    if (item === null || submitting) {
+      return;
+    }
+
+    const toRequested = !isRequested(item);
+
+    setError(null);
+    setSubmitting(true);
+    try {
+      if (toRequested) {
+        await requestItem(familyId, item.id);
+      } else {
+        await cancelRequestItem(familyId, item.id);
+      }
+    } catch (switchError) {
+      setError(errorMessage(switchError, toRequested ? 'requestItem' : 'cancelRequestItem'));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  //他の品目も併せて選ぶ画面へ移る
+  function handleAccept() {
+    if (item === null || submitting) {
+      return;
+    }
+
+    onClose();
+    navigation.navigate('AcceptRequest', { initialItemId: item.id });
+  }
+
   //削除の前に確認をする
   function confirmDelete() {
     Alert.alert('確認', `「${item?.itemName}」を削除しますか。`, [
@@ -275,7 +317,11 @@ export default function AddMissingModal({ familyId, uid, item, onClose }: Props)
             {!editing && item !== null ? (
               <>
                 {!editable && (
-                  <Text style={styles.note}>この品目は完了しているため、編集できません。</Text>
+                  <Text style={styles.note}>
+                    {item.status === 'completed'
+                      ? 'この品目は完了しているため、編集できません。'
+                      : '他の人が担当しているため、編集できません。'}
+                  </Text>
                 )}
 
                 <Text style={styles.label}>商品名</Text>
@@ -285,7 +331,7 @@ export default function AddMissingModal({ familyId, uid, item, onClose }: Props)
                 <Text style={styles.value}>{categoryLabel(item.category)}</Text>
 
                 <Text style={styles.label}>状態</Text>
-                <Text style={styles.value}>{STATUS_LABELS[item.status]}</Text>
+                <Text style={styles.value}>{itemStateLabel(item)}</Text>
 
                 <Text style={styles.label}>代替品</Text>
                 {item.alternativeItemNames.length === 0 ? (
@@ -440,6 +486,20 @@ export default function AddMissingModal({ familyId, uid, item, onClose }: Props)
               </>
             ) : (
               <>
+                {acceptable && (
+                  <Button
+                    title="依頼を受け付ける"
+                    onPress={handleAccept}
+                    disabled={submitting}
+                  />
+                )}
+                {switchable && (
+                  <Button
+                    title={isRequested(item) ? '依頼を取り下げる' : '依頼する'}
+                    onPress={handleSwitchStatus}
+                    disabled={submitting}
+                  />
+                )}
                 {editable && (
                   <Button title="編集する" onPress={() => setEditing(true)} disabled={submitting} />
                 )}

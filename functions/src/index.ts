@@ -8,3 +8,7 @@ setGlobalOptions({ maxInstances: 10, region: "asia-northeast1" });
 
 export { createFamily } from "./family/createFamily";
 export { joinFamily } from "./family/joinFamily";
+export { requestItem } from "./item/requestItem";
+export { cancelRequest } from "./item/cancelRequest";
+export { approveRequest } from "./item/approveRequest";
+export { rejectRequest } from "./item/rejectRequest";

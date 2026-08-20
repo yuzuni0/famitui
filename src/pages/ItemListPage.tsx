@@ -3,10 +3,9 @@ import { ActivityIndicator, Button, Pressable, SectionList, StyleSheet, Text, Vi
 
 import { errorMessage } from '../lib/errors';
 import AddMissingModal from './AddMissingModal';
-import { observeItems } from '../services/item';
+import { itemStateLabel, observeItems } from '../services/item';
 import type { ItemWithId } from '../services/item';
 import { CATEGORIES } from '../types/firestore';
-import type { ItemStatus } from '../types/firestore';
 
 type Props = {
   familyId: string;
@@ -17,13 +16,6 @@ type Props = {
 type ItemSection = {
   title: string;
   data: ItemWithId[];
-};
-
-//状態の表示名
-const STATUS_LABELS: Record<ItemStatus, string> = {
-  requested: '依頼中',
-  shortage: '不足',
-  completed: '完了',
 };
 
 function buildSections(items: ItemWithId[]): ItemSection[] {
@@ -67,15 +59,8 @@ export default function ItemListPage({ familyId, uid }: Props) {
     return unsubscribe;
   }, [familyId]);
 
-  //不足品をタップした時の遷移先を決める
+  //不足品をタップした時はモーダルを開く
   function handlePressItem(item: ItemWithId) {
-    if (item.status === 'requested') {
-
-      setSelectedItemId(item.id);
-      return;
-    }
-
-    //shortage は編集でき、completed は表示だけ
     setSelectedItemId(item.id);
   }
 
@@ -119,7 +104,7 @@ export default function ItemListPage({ familyId, uid }: Props) {
         renderItem={({ item }) => (
           <Pressable style={styles.item} onPress={() => handlePressItem(item)}>
             <Text style={styles.itemName}>{item.itemName}</Text>
-            <Text style={styles.meta}>{STATUS_LABELS[item.status]}</Text>
+            <Text style={styles.meta}>{itemStateLabel(item)}</Text>
             {item.note !== '' && <Text style={styles.note}>{item.note}</Text>}
           </Pressable>
         )}

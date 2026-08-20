@@ -9,9 +9,40 @@ export function errorCode(error: unknown): string | null {
   return null;
 }
 
+export type ErrorScope = 'requestItem' | 'cancelRequestItem' | 'approveRequest';
+
+//呼び出し元ごとに共通の文言を上書きする
+const SCOPE_MESSAGES: Record<ErrorScope, Partial<Record<string, string>>> = {
+  requestItem: {
+    'permission-denied': 'この家族グループに所属していません。',
+    'not-found': '品目が見つかりません。',
+    'failed-precondition': '既に依頼が出ているか、担当が決まっています。',
+  },
+  cancelRequestItem: {
+    'permission-denied': 'この家族グループに所属していません。',
+    'not-found': '品目が見つかりません。',
+    'failed-precondition': '依頼が出ていないか、既に担当が決まっています。',
+  },
+  approveRequest: {
+    'permission-denied': 'この家族グループに所属していません。',
+    'not-found': '品目が見つかりません。',
+    'failed-precondition': '他の人が担当を始めたか、完了しています。',
+  },
+};
+
 //エラーコードを日本語のメッセージに変換する
-export function errorMessage(error: unknown): string {
-  switch (errorCode(error)) {
+export function errorMessage(error: unknown, scope?: ErrorScope): string {
+  const code = errorCode(error);
+
+  //呼び出し元の文言があればそれを使う
+  if (scope !== undefined && code !== null) {
+    const scopedMessage = SCOPE_MESSAGES[scope][code];
+    if (scopedMessage !== undefined) {
+      return scopedMessage;
+    }
+  }
+
+  switch (code) {
     //Firebase Authentication のエラーコード
     case 'auth/email-already-in-use':
       return 'このメールアドレスは既に使われています。';

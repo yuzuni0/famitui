@@ -1,5 +1,5 @@
 import { addDoc, collection, deleteDoc, doc, getFirestore, onSnapshot, orderBy, query, serverTimestamp, updateDoc, } from '@react-native-firebase/firestore';
-import type { CategoryId, ItemDoc, ItemStatus } from '../types/firestore';
+import type { CategoryId, ItemDoc } from '../types/firestore';
 //items/{itemId} の読み書きを行う
 
 const FAMILIES_COLLECTION = 'families';
@@ -74,12 +74,42 @@ export async function deleteItem(familyId: string, itemId: string): Promise<void
   await deleteDoc(itemDocRef(familyId, itemId));
 }
 
-//表示順を決めるための状態の優先度を示す
-const STATUS_ORDER: Record<ItemStatus, number> = {
-  requested: 0,
-  shortage: 1,
-  completed: 2,
-};
+//依頼が出ているか
+export function isRequested(item: ItemWithId): boolean {
+  return item.requesterUserId !== null;
+}
+
+//担当が決まっているか
+export function isAssigned(item: ItemWithId): boolean {
+  return item.activeAssignmentId !== null;
+}
+
+//担当しているのが自分か
+export function isAssignedTo(item: ItemWithId, uid: string): boolean {
+  return item.activeAssignmentId === `${item.id}_${uid}`;
+}
+
+//一覧に出す状態の表示名
+export function itemStateLabel(item: ItemWithId): string {
+  if (item.status === 'completed') {
+    return '完了';
+  }
+  if (isAssigned(item)) {
+    return '担当中';
+  }
+  if (isRequested(item)) {
+    return '依頼中';
+  }
+  return '不足';
+}
+
+//一覧の表示順を決める
+function stateOrder(item: ItemWithId): number {
+  if (item.status === 'completed') {
+    return 2;
+  }
+  return isRequested(item) || isAssigned(item) ? 0 : 1;
+}
 
 function createdTimeMillis(item: ItemWithId): number {
   return item.createdTime ? item.createdTime.toMillis() : Number.MAX_SAFE_INTEGER;
@@ -88,9 +118,9 @@ function createdTimeMillis(item: ItemWithId): number {
 //一覧の表示順に並べ替える
 export function sortItems(items: ItemWithId[]): ItemWithId[] {
   return [...items].sort((a, b) => {
-    const statusDiff = STATUS_ORDER[a.status] - STATUS_ORDER[b.status];
-    if (statusDiff !== 0) {
-      return statusDiff;
+    const orderDiff = stateOrder(a) - stateOrder(b);
+    if (orderDiff !== 0) {
+      return orderDiff;
     }
     return createdTimeMillis(b) - createdTimeMillis(a);
   });

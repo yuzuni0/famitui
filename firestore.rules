@@ -169,6 +169,9 @@ service cloud.firestore {
 
         //遷移状態の管理は Cloud Functions で行う
         allow update: if isMember(familyId)
+          //担当が決まっている間は担当者だけが編集できる
+          && (resource.data.activeAssignmentId == null
+              || resource.data.activeAssignmentId == itemId + '_' + request.auth.uid)
           && changed().hasOnly([
                'itemName', 'category', 'alternativeItemNames',
                'maxDistanceMeters', 'note', 'autoNotifyEnabled'])
@@ -185,8 +188,11 @@ service cloud.firestore {
           && validMaxDistance(request.resource.data.maxDistanceMeters)
           && validAlternatives(request.resource.data.alternativeItemNames);
 
+        //依頼も担当も付いていない不足品だけを消せる
         allow delete: if isMember(familyId)
-          && resource.data.status == 'shortage';
+          && resource.data.status != 'completed'
+          && resource.data.requesterUserId == null
+          && resource.data.activeAssignmentId == null;
       }
 
       //割り当て(assignments)

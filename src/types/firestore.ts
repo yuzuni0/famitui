@@ -6,7 +6,7 @@ import type { Timestamp } from '@react-native-firebase/firestore';
 export type TransportMode = 'none' | 'walk' | 'bike' | 'vehicle';
 
 //不足品の状態
-export type ItemStatus = 'shortage' | 'requested' | 'completed';
+export type ItemStatus = 'shortage' | 'completed';
 
 //割り当ての状態
 export type AssignmentStatus = 'active' | 'completed' | 'expired' | 'canceled';
