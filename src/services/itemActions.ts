@@ -10,6 +10,8 @@ const CANCEL_REQUEST_ITEM = 'cancelRequest';
 
 const APPROVE_REQUEST = 'approveRequest';
 
+const REPORT_PURCHASE = 'reportPurchase';
+
 //requestItem と cancelRequest に渡す引数
 type RequestItemRequest = {
   familyId: string;
@@ -30,6 +32,17 @@ type ApproveRequestRequest = {
 //approveRequest の戻り値
 type ApproveRequestResult = {
   assignmentId: string;
+};
+
+//reportPurchase の引数
+type ReportPurchaseRequest = {
+  familyId: string;
+  itemId: string;
+};
+
+//reportPurchase の戻り値
+type ReportPurchaseResult = {
+  itemId: string;
 };
 
 function itemFunctions() {
@@ -62,4 +75,13 @@ export async function approveRequest(familyId: string, itemId: string): Promise<
   );
   const response = await callable({ familyId, itemId });
   return response.data.assignmentId;
+}
+
+//購入を報告して依頼を完了させる
+export async function reportPurchase(familyId: string, itemId: string): Promise<void> {
+  const callable = httpsCallable<ReportPurchaseRequest, ReportPurchaseResult>(
+    itemFunctions(),
+    REPORT_PURCHASE,
+  );
+  await callable({ familyId, itemId });
 }

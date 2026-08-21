@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
 import AcceptRequestPage from '../pages/AcceptRequestPage';
+import AssignedListPage from '../pages/AssignedListPage';
 import FamilySetupPage from '../pages/FamilySetupPage';
 import HomePage from '../pages/HomePage';
 import ItemListPage from '../pages/ItemListPage';
@@ -35,6 +36,8 @@ export type MainStackParamList = {
   Home: undefined;
   ItemList: undefined;
   AcceptRequest: { initialItemId: string };
+  AssignedList: undefined;
+  AssignmentDetail: { itemId: string };
 };
 
 const AuthStack = createNativeStackNavigator<AuthStackParamList>();
@@ -124,6 +127,9 @@ export default function RootNavigator() {
       </MainStack.Screen>
       <MainStack.Screen name="ItemList">
         {() => <ItemListPage familyId={familyId} uid={uid} />}
+      </MainStack.Screen>
+      <MainStack.Screen name="AssignedList" options={{ title: '担当している品目' }}>
+        {() => <AssignedListPage familyId={familyId} uid={uid} />}
       </MainStack.Screen>
       <MainStack.Screen name="AcceptRequest" options={{ title: '依頼を受け付ける' }}>
         {({ route }) => (

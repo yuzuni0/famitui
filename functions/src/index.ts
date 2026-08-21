@@ -12,3 +12,4 @@ export { requestItem } from "./item/requestItem";
 export { cancelRequest } from "./item/cancelRequest";
 export { approveRequest } from "./item/approveRequest";
 export { rejectRequest } from "./item/rejectRequest";
+export { reportPurchase } from "./item/reportPurchase";

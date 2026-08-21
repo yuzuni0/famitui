@@ -106,6 +106,12 @@ export default function HomePage({ familyId }: Props) {
         disabled={signingOut}
       />
 
+      <Button
+        title="担当している品目"
+        onPress={() => navigation.navigate('AssignedList')}
+        disabled={signingOut}
+      />
+
       {signingOut ? (
         <ActivityIndicator />
       ) : (
