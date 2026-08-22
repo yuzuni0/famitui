@@ -9,7 +9,9 @@ import HomePage from '../pages/HomePage';
 import ItemListPage from '../pages/ItemListPage';
 import LoginPage from '../pages/LoginPage';
 import ProfileSetupPage from '../pages/ProfileSetupPage';
+import PurchaseReportPage from '../pages/PurchaseReportPage';
 import SignUpPage from '../pages/SignUpPage';
+import TaskDetailPage from '../pages/TaskDetailPage';
 import { observeAuthState } from '../services/auth';
 import { observeUserDoc } from '../services/user';
 import type { UserDocSnapshot } from '../services/user';
@@ -38,6 +40,7 @@ export type MainStackParamList = {
   AcceptRequest: { initialItemId: string };
   AssignedList: undefined;
   AssignmentDetail: { itemId: string };
+  PurchaseReport: { initialItemId: string };
 };
 
 const AuthStack = createNativeStackNavigator<AuthStackParamList>();
@@ -131,9 +134,23 @@ export default function RootNavigator() {
       <MainStack.Screen name="AssignedList" options={{ title: '担当している品目' }}>
         {() => <AssignedListPage familyId={familyId} uid={uid} />}
       </MainStack.Screen>
+      <MainStack.Screen name="AssignmentDetail" options={{ title: '担当の詳細' }}>
+        {({ route }) => (
+          <TaskDetailPage familyId={familyId} uid={uid} itemId={route.params.itemId} />
+        )}
+      </MainStack.Screen>
       <MainStack.Screen name="AcceptRequest" options={{ title: '依頼を受け付ける' }}>
         {({ route }) => (
           <AcceptRequestPage
+            familyId={familyId}
+            uid={uid}
+            initialItemId={route.params.initialItemId}
+          />
+        )}
+      </MainStack.Screen>
+      <MainStack.Screen name="PurchaseReport" options={{ title: '購入を報告する' }}>
+        {({ route }) => (
+          <PurchaseReportPage
             familyId={familyId}
             uid={uid}
             initialItemId={route.params.initialItemId}

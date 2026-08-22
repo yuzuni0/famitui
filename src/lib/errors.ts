@@ -9,7 +9,11 @@ export function errorCode(error: unknown): string | null {
   return null;
 }
 
-export type ErrorScope = 'requestItem' | 'cancelRequestItem' | 'approveRequest';
+export type ErrorScope =
+  | 'requestItem'
+  | 'cancelRequestItem'
+  | 'approveRequest'
+  | 'reportPurchase';
 
 //呼び出し元ごとに共通の文言を上書きする
 const SCOPE_MESSAGES: Record<ErrorScope, Partial<Record<string, string>>> = {
@@ -27,6 +31,11 @@ const SCOPE_MESSAGES: Record<ErrorScope, Partial<Record<string, string>>> = {
     'permission-denied': 'この家族グループに所属していません。',
     'not-found': '品目が見つかりません。',
     'failed-precondition': '他の人が担当を始めたか、完了しています。',
+  },
+  reportPurchase: {
+    'permission-denied': 'この家族グループに所属していません。',
+    'not-found': '品目が見つかりません。',
+    'failed-precondition': '担当していないか、既に完了しています。',
   },
 };
 
