@@ -12,6 +12,8 @@ const APPROVE_REQUEST = 'approveRequest';
 
 const REPORT_PURCHASE = 'reportPurchase';
 
+const CANCEL_ASSIGNMENT = 'cancelAssignment';
+
 //requestItem と cancelRequest に渡す引数
 type RequestItemRequest = {
   familyId: string;
@@ -42,6 +44,17 @@ type ReportPurchaseRequest = {
 
 //reportPurchase の戻り値
 type ReportPurchaseResult = {
+  itemId: string;
+};
+
+//cancelAssignment の引数
+type CancelAssignmentRequest = {
+  familyId: string;
+  itemId: string;
+};
+
+//cancelAssignment の戻り値
+type CancelAssignmentResult = {
   itemId: string;
 };
 
@@ -82,6 +95,15 @@ export async function reportPurchase(familyId: string, itemId: string): Promise<
   const callable = httpsCallable<ReportPurchaseRequest, ReportPurchaseResult>(
     itemFunctions(),
     REPORT_PURCHASE,
+  );
+  await callable({ familyId, itemId });
+}
+
+//担当を辞退して依頼品へ戻す
+export async function cancelAssignment(familyId: string, itemId: string): Promise<void> {
+  const callable = httpsCallable<CancelAssignmentRequest, CancelAssignmentResult>(
+    itemFunctions(),
+    CANCEL_ASSIGNMENT,
   );
   await callable({ familyId, itemId });
 }

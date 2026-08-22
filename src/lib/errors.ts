@@ -13,7 +13,8 @@ export type ErrorScope =
   | 'requestItem'
   | 'cancelRequestItem'
   | 'approveRequest'
-  | 'reportPurchase';
+  | 'reportPurchase'
+  | 'cancelAssignment';
 
 //呼び出し元ごとに共通の文言を上書きする
 const SCOPE_MESSAGES: Record<ErrorScope, Partial<Record<string, string>>> = {
@@ -36,6 +37,11 @@ const SCOPE_MESSAGES: Record<ErrorScope, Partial<Record<string, string>>> = {
     'permission-denied': 'この家族グループに所属していません。',
     'not-found': '品目が見つかりません。',
     'failed-precondition': '担当していないか、既に完了しています。',
+  },
+  cancelAssignment: {
+    'permission-denied': 'この家族グループに所属していません。',
+    'not-found': '品目が見つかりません。',
+    'failed-precondition': 'この品目を担当していないか、既に完了しています。',
   },
 };
 

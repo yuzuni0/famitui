@@ -1,7 +1,7 @@
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Button, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Button, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { errorMessage } from '../lib/errors';
 import type { MainStackParamList } from '../navigation/RootNavigator';
@@ -9,6 +9,7 @@ import { isExpired, observeAssignment, remainingMillis } from '../services/assig
 import type { AssignmentWithId } from '../services/assignment';
 import { observeItems } from '../services/item';
 import type { ItemWithId } from '../services/item';
+import { cancelAssignment } from '../services/itemActions';
 import { observeMembers } from '../services/member';
 import type { MemberWithId } from '../services/member';
 import { CATEGORIES } from '../types/firestore';
@@ -44,6 +45,7 @@ export default function TaskDetailPage({ familyId, uid, itemId }: Props) {
   const [assignment, setAssignment] = useState<AssignmentWithId | null>(null);
   const [assignmentLoaded, setAssignmentLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   const assignmentId = `${itemId}_${uid}`;
 
@@ -127,6 +129,34 @@ export default function TaskDetailPage({ familyId, uid, itemId }: Props) {
     );
   }, [item, members]);
 
+  //担当を辞退して依頼品へ戻す
+  async function handleCancelAssignment() {
+    if (submitting) {
+      return;
+    }
+
+    setError(null);
+    setSubmitting(true);
+
+    try {
+      await cancelAssignment(familyId, itemId);
+    } catch (submitError) {
+      setError(errorMessage(submitError, 'cancelAssignment'));
+      setSubmitting(false);
+      return;
+    }
+
+    navigation.goBack();
+  }
+
+  //辞退の前に確認をする
+  function confirmCancelAssignment() {
+    Alert.alert('確認', `「${item?.itemName}」の担当を辞退しますか。`, [
+      { text: 'キャンセル', style: 'cancel' },
+      { text: '辞退する', style: 'destructive', onPress: handleCancelAssignment },
+    ]);
+  }
+
   //読み込み中はローディング表示をする
   if (items === null || members === null || !assignmentLoaded) {
     return (
@@ -202,12 +232,21 @@ export default function TaskDetailPage({ familyId, uid, itemId }: Props) {
       </ScrollView>
 
       {active && (
-        <Button
-          title="購入した報告"
-          onPress={() => navigation.navigate('PurchaseReport', { initialItemId: itemId })}
-        />
+        <>
+          <Button
+            title="購入した報告"
+            onPress={() => navigation.navigate('PurchaseReport', { initialItemId: itemId })}
+            disabled={submitting}
+          />
+          <Button
+            title="担当を辞退する"
+            color="#c00"
+            onPress={confirmCancelAssignment}
+            disabled={submitting}
+          />
+        </>
       )}
-      <Button title="閉じる" onPress={() => navigation.goBack()} />
+      <Button title="閉じる" onPress={() => navigation.goBack()} disabled={submitting} />
     </View>
   );
 }
