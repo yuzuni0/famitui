@@ -5,9 +5,11 @@ import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import AcceptRequestPage from '../pages/AcceptRequestPage';
 import AssignedListPage from '../pages/AssignedListPage';
 import FamilySetupPage from '../pages/FamilySetupPage';
+import FamilyStatusPage from '../pages/FamilyStatusPage';
 import HomePage from '../pages/HomePage';
 import ItemListPage from '../pages/ItemListPage';
 import LoginPage from '../pages/LoginPage';
+import MyStatusPage from '../pages/MyStatusPage';
 import ProfileSetupPage from '../pages/ProfileSetupPage';
 import PurchaseReportPage from '../pages/PurchaseReportPage';
 import SignUpPage from '../pages/SignUpPage';
@@ -41,6 +43,8 @@ export type MainStackParamList = {
   AssignedList: undefined;
   AssignmentDetail: { itemId: string };
   PurchaseReport: { initialItemId: string };
+  MyStatus: undefined;
+  FamilyStatus: undefined;
 };
 
 const AuthStack = createNativeStackNavigator<AuthStackParamList>();
@@ -156,6 +160,12 @@ export default function RootNavigator() {
             initialItemId={route.params.initialItemId}
           />
         )}
+      </MainStack.Screen>
+      <MainStack.Screen name="MyStatus" options={{ title: '自分の状態' }}>
+        {() => <MyStatusPage familyId={familyId} uid={uid} />}
+      </MainStack.Screen>
+      <MainStack.Screen name="FamilyStatus" options={{ title: '家族の状態' }}>
+        {() => <FamilyStatusPage familyId={familyId} uid={uid} />}
       </MainStack.Screen>
     </MainStack.Navigator>
   );

@@ -1,0 +1,152 @@
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, FlatList, StyleSheet, Text, View } from 'react-native';
+
+import { errorMessage } from '../lib/errors';
+import { isBusy, observeMembers, resolveTransportMode } from '../services/member';
+import type { MemberWithId } from '../services/member';
+import { TRANSPORT_MODES } from '../types/firestore';
+import type { TransportMode } from '../types/firestore';
+
+//家族全員の移動手段と拘束状況を確認する画面
+type Props = {
+  familyId: string;
+  uid: string;
+};
+
+type MemberTimestamp = NonNullable<MemberWithId['busyUntilTime']>;
+
+function transportModeLabel(mode: TransportMode): string {
+  return TRANSPORT_MODES.find(entry => entry.id === mode)?.label ?? mode;
+}
+
+//日をまたぐ場合があるため月日も表示する
+function formatDateTime(value: MemberTimestamp): string {
+  const date = value.toDate();
+  const month = date.getMonth() + 1;
+  const day = date.getDate();
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  return `${month}/${day} ${hours}:${minutes}`;
+}
+
+//拘束の内容と終了時刻を表示する
+function busyLabel(member: MemberWithId): string {
+  if (!isBusy(member) || member.busyUntilTime === null) {
+    return '拘束なし';
+  }
+  return `${member.busyLabel ?? '内容なし'}・${formatDateTime(member.busyUntilTime)} まで`;
+}
+
+export default function FamilyStatusPage({ familyId, uid }: Props) {
+
+  const [members, setMembers] = useState<MemberWithId[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  //家族の情報を監視する
+  useEffect(() => {
+    setMembers(null);
+    setError(null);
+
+    const unsubscribe = observeMembers(
+      familyId,
+      nextMembers => {
+        setMembers(nextMembers);
+        setError(null);
+      },
+      observeError => {
+        setError(errorMessage(observeError));
+      },
+    );
+
+    return unsubscribe;
+  }, [familyId]);
+
+  if (members === null) {
+    return (
+      <View style={styles.loading}>
+        <ActivityIndicator size="large" />
+        {error !== null && <Text style={styles.error}>{error}</Text>}
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.container}>
+      {error !== null && <Text style={styles.error}>{error}</Text>}
+
+      <FlatList
+        data={members}
+        keyExtractor={member => member.id}
+        contentContainerStyle={styles.list}
+        ListEmptyComponent={
+          <Text style={styles.empty}>メンバーがいません。</Text>
+        }
+        renderItem={({ item: member }) => {
+          const self = member.id === uid;
+
+          return (
+            <View style={[styles.member, self && styles.memberSelf]}>
+              <Text style={styles.displayName}>
+                {member.displayName}
+                {self && '（自分）'}
+              </Text>
+              <Text style={styles.meta}>レベル {member.level}</Text>
+              <Text style={styles.meta}>
+                移動手段：{transportModeLabel(resolveTransportMode(member))}
+              </Text>
+              <Text style={isBusy(member) ? styles.busy : styles.meta}>
+                {busyLabel(member)}
+              </Text>
+            </View>
+          );
+        }}
+      />
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  loading: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+  },
+  container: {
+    flex: 1,
+    padding: 24,
+    gap: 12,
+  },
+  list: {
+    gap: 12,
+  },
+  member: {
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 4,
+    padding: 12,
+    gap: 4,
+  },
+  memberSelf: {
+    borderColor: '#06c',
+    backgroundColor: '#eef4fc',
+  },
+  displayName: {
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  meta: {
+    color: '#666',
+  },
+  busy: {
+    color: '#c60',
+  },
+  empty: {
+    textAlign: 'center',
+    color: '#666',
+  },
+  error: {
+    textAlign: 'center',
+    color: '#c00',
+  },
+});

@@ -27,6 +27,15 @@ export const CATEGORIES = [
 
 export type CategoryId = (typeof CATEGORIES)[number]['id'];
 
+//移動手段
+
+export const TRANSPORT_MODES: { id: TransportMode; label: string }[] = [
+  { id: 'none', label: 'なし' },
+  { id: 'walk', label: '徒歩' },
+  { id: 'bike', label: '自転車' },
+  { id: 'vehicle', label: '車' },
+];
+
 //{uid}
 export type UserDoc = {
   displayName: string;

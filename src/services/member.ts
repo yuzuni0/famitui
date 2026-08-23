@@ -36,6 +36,11 @@ export function transportModeExpireTime(mode: TransportMode): Timestamp | null {
   return Timestamp.fromDate(new Date(Date.now() + TRANSPORT_MODE_DURATION_MS));
 }
 
+//現在時刻から拘束終了時間を計算する
+export function busyUntilTimeFromNow(durationMs: number): Timestamp {
+  return Timestamp.fromDate(new Date(Date.now() + durationMs));
+}
+
 //期限切れを考慮した移動手段を返す
 export function resolveTransportMode(member: MemberDoc): TransportMode {
   if (member.transportMode === 'none') {

@@ -112,6 +112,18 @@ export default function HomePage({ familyId }: Props) {
         disabled={signingOut}
       />
 
+      <Button
+        title="自分の状態"
+        onPress={() => navigation.navigate('MyStatus')}
+        disabled={signingOut}
+      />
+
+      <Button
+        title="家族の状態"
+        onPress={() => navigation.navigate('FamilyStatus')}
+        disabled={signingOut}
+      />
+
       {signingOut ? (
         <ActivityIndicator />
       ) : (
