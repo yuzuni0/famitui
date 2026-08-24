@@ -26,7 +26,19 @@
     },
     "plugins": [
       "@react-native-firebase/app",
-      "@react-native-firebase/auth"
+      "@react-native-firebase/auth",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "冷蔵庫や棚を撮影して不足品を検出するために使用します。"
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "保存済みの写真から不足品を検出するために使用します。"
+        }
+      ]
     ]
   }
 }

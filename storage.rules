@@ -1,0 +1,41 @@
+rules_version = '2';
+
+// Cloud Storage 用のルール
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    //補助関数
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    // Storage の Rules から Firestore を参照する
+    function isMember(familyId) {
+      return signedIn()
+        && firestore.exists(
+             /databases/(default)/documents/families/$(familyId)/members/$(request.auth.uid));
+    }
+
+    //上限は10MB
+    function validSize() {
+      return request.resource.size <= 10 * 1024 * 1024;
+    }
+
+    //画像のみを許可する
+    function validContentType() {
+      return request.resource.contentType.matches('image/.*');
+    }
+
+    match /families/{familyId}/photos/{fileName} {
+      allow read: if isMember(familyId);
+
+      allow create, update: if isMember(familyId)
+        && validSize()
+        && validContentType();
+
+      allow delete: if false;
+    }
+  }
+}
