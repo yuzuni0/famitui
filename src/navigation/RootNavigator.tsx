@@ -4,6 +4,8 @@ import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
 import AcceptRequestPage from '../pages/AcceptRequestPage';
 import AssignedListPage from '../pages/AssignedListPage';
+import CameraPage from '../pages/CameraPage';
+import DetectionResultPage from '../pages/DetectionResultPage';
 import FamilySetupPage from '../pages/FamilySetupPage';
 import FamilyStatusPage from '../pages/FamilyStatusPage';
 import HomePage from '../pages/HomePage';
@@ -17,6 +19,7 @@ import TaskDetailPage from '../pages/TaskDetailPage';
 import { observeAuthState } from '../services/auth';
 import { observeUserDoc } from '../services/user';
 import type { UserDocSnapshot } from '../services/user';
+import type { CameraMode } from '../types/firestore';
 
 
 //未ログインのスタック
@@ -45,6 +48,8 @@ export type MainStackParamList = {
   PurchaseReport: { initialItemId: string };
   MyStatus: undefined;
   FamilyStatus: undefined;
+  Camera: { mode: CameraMode };
+  DetectionResult: { storagePath: string; mode: CameraMode };
 };
 
 const AuthStack = createNativeStackNavigator<AuthStackParamList>();
@@ -166,6 +171,21 @@ export default function RootNavigator() {
       </MainStack.Screen>
       <MainStack.Screen name="FamilyStatus" options={{ title: '家族の状態' }}>
         {() => <FamilyStatusPage familyId={familyId} uid={uid} />}
+      </MainStack.Screen>
+      <MainStack.Screen name="Camera" options={{ title: '撮影する' }}>
+        {({ route }) => (
+          <CameraPage familyId={familyId} uid={uid} mode={route.params.mode} />
+        )}
+      </MainStack.Screen>
+      <MainStack.Screen name="DetectionResult" options={{ title: '判定の結果' }}>
+        {({ route }) => (
+          <DetectionResultPage
+            familyId={familyId}
+            uid={uid}
+            storagePath={route.params.storagePath}
+            mode={route.params.mode}
+          />
+        )}
       </MainStack.Screen>
     </MainStack.Navigator>
   );

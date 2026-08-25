@@ -1,7 +1,10 @@
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Button, Pressable, SectionList, StyleSheet, Text, View } from 'react-native';
 
 import { errorMessage } from '../lib/errors';
+import type { MainStackParamList } from '../navigation/RootNavigator';
 import AddMissingModal from './AddMissingModal';
 import { itemStateLabel, observeItems } from '../services/item';
 import type { ItemWithId } from '../services/item';
@@ -33,6 +36,7 @@ function buildSections(items: ItemWithId[]): ItemSection[] {
 }
 
 export default function ItemListPage({ familyId, uid }: Props) {
+  const navigation = useNavigation<NativeStackNavigationProp<MainStackParamList>>();
 
   const [items, setItems] = useState<ItemWithId[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -111,6 +115,17 @@ export default function ItemListPage({ familyId, uid }: Props) {
       />
 
       <Button title="不足品を追加する" onPress={() => setCreating(true)} />
+
+      {/* 撮影画面に遷移するボタン */}
+      <Button
+        title="基準を登録する"
+        onPress={() => navigation.navigate('Camera', { mode: 'baseline' })}
+      />
+
+      <Button
+        title="不足品を検出する"
+        onPress={() => navigation.navigate('Camera', { mode: 'detect' })}
+      />
 
       {(creating || selectedItem !== null) && (
         <AddMissingModal

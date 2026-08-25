@@ -68,6 +68,11 @@ service cloud.firestore {
         && (v.size() < 5 || (v[4] is string && v[4].size() > 0 && v[4].size() <= 50));
     }
 
+    //基準となるラベルの一覧
+    function validLabels(v) {
+      return v is list && v.size() <= 100;
+    }
+
     //ユーザー情報(users)
 
     match /users/{uid} {
@@ -200,6 +205,23 @@ service cloud.firestore {
       match /assignments/{assignmentId} {
         allow read: if isMember(familyId);
         allow write: if false;
+      }
+
+      //在庫の基準(stockStandards)
+
+      match /stockStandards/{standardId} {
+        allow read: if isMember(familyId);
+
+        allow create, update: if isMember(familyId)
+          && request.resource.data.keys().hasOnly(
+               ['labels', 'updatedTime', 'updaterUserId'])
+          && request.resource.data.keys().hasAll(
+               ['labels', 'updatedTime', 'updaterUserId'])
+          && validLabels(request.resource.data.labels)
+          && request.resource.data.updatedTime == request.time
+          && request.resource.data.updaterUserId == request.auth.uid;
+
+        allow delete: if false;
       }
     }
   }

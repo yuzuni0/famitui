@@ -14,7 +14,8 @@ export type ErrorScope =
   | 'cancelRequestItem'
   | 'approveRequest'
   | 'reportPurchase'
-  | 'cancelAssignment';
+  | 'cancelAssignment'
+  | 'detectItems';
 
 //呼び出し元ごとに共通の文言を上書きする
 const SCOPE_MESSAGES: Record<ErrorScope, Partial<Record<string, string>>> = {
@@ -42,6 +43,12 @@ const SCOPE_MESSAGES: Record<ErrorScope, Partial<Record<string, string>>> = {
     'permission-denied': 'この家族グループに所属していません。',
     'not-found': '品目が見つかりません。',
     'failed-precondition': 'この品目を担当していないか、既に完了しています。',
+  },
+  detectItems: {
+    'permission-denied': 'この家族グループに所属していません。',
+    'not-found': '撮影した画像が見つかりません。',
+    'internal': '判定に失敗しました。時間をおいてもう一度お試しください。',
+    'deadline-exceeded': '判定に時間がかかりすぎました。もう一度お試しください。',
   },
 };
 

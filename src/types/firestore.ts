@@ -14,6 +14,9 @@ export type AssignmentStatus = 'active' | 'completed' | 'expired' | 'canceled';
 //購入報告の方法
 export type ReportMethod = 'manual' | 'payment';
 
+//撮影の目的
+export type CameraMode = 'baseline' | 'detect';
+
 //カテゴリ
 
 //Firestore のコレクションではなく定数として保持する
@@ -106,4 +109,25 @@ export type AssignmentDoc = {
   completedTime: Timestamp | null;
 
   reportMethod: ReportMethod | null;
+};
+
+export type StandardLabel = {
+  label: string;
+  category: CategoryId;
+};
+
+export type StockStandardDoc = {
+  //基準となるラベル
+  labels: StandardLabel[];
+  updatedTime: Timestamp;
+  updaterUserId: string;
+};
+
+//APIが返す判定結果
+export type DetectedItem = {
+  //判定できた商品名
+  itemName: string;
+  //カテゴリ
+  label: string;
+  category: CategoryId;
 };

@@ -14,3 +14,4 @@ export { approveRequest } from "./item/approveRequest";
 export { rejectRequest } from "./item/rejectRequest";
 export { reportPurchase } from "./item/reportPurchase";
 export { cancelAssignment } from "./item/cancelAssignment";
+export { detectItems } from "./photo/detectItems";
