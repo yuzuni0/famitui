@@ -1,8 +1,8 @@
 import { getApp } from '@react-native-firebase/app';
-import { doc, getFirestore, onSnapshot } from '@react-native-firebase/firestore';
+import { doc, getFirestore, onSnapshot, updateDoc } from '@react-native-firebase/firestore';
 import { getFunctions, httpsCallable } from '@react-native-firebase/functions';
-import type { FamilyDoc } from '../types/firestore';
-//家族グループの Cloud Functions の呼び出しと、families/{familyId} の読み取りを行う
+import type { FamilyDoc, GeoPoint } from '../types/firestore';
+//家族グループの Cloud Functions の呼び出しと、 familyId の読み書きを行う
 
 const REGION = 'asia-northeast1';
 
@@ -39,6 +39,11 @@ function familyFunctions() {
   return getFunctions(getApp(), REGION);
 }
 
+//familyidの参照を返す
+function familyDocRef(familyId: string) {
+  return doc(getFirestore(), FAMILIES_COLLECTION, familyId);
+}
+
 //家族グループを新規作成する
 export async function createFamily(familyName: string): Promise<CreateFamilyResult> {
   const callable = httpsCallable<CreateFamilyRequest, CreateFamilyResult>(
@@ -66,7 +71,7 @@ export function observeFamilyDoc(
   onError?: (error: Error) => void,
 ): () => void {
   return onSnapshot(
-    doc(getFirestore(), FAMILIES_COLLECTION, familyId),
+    familyDocRef(familyId),
     snapshot => {
       callback(snapshot.exists() ? (snapshot.data() as FamilyDoc) : null);
     },
@@ -75,4 +80,9 @@ export function observeFamilyDoc(
       onError?.(error);
     },
   );
+}
+
+//自宅の位置を更新する
+export async function updateHomeLocation(familyId: string, location: GeoPoint): Promise<void> {
+  await updateDoc(familyDocRef(familyId), { homeLocation: location });
 }

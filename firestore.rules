@@ -73,6 +73,17 @@ service cloud.firestore {
       return v is list && v.size() <= 100;
     }
 
+    function validGeoPoint(v) {
+      return v == null
+        || (v is map
+            && v.keys().hasOnly(['latitude', 'longitude'])
+            && v.keys().hasAll(['latitude', 'longitude'])
+            && v.latitude is number
+            && v.latitude >= -90 && v.latitude <= 90
+            && v.longitude is number
+            && v.longitude >= -180 && v.longitude <= 180);
+    }
+
     //ユーザー情報(users)
 
     match /users/{uid} {
@@ -114,7 +125,16 @@ service cloud.firestore {
     match /families/{familyId} {
       allow get: if isMember(familyId);
       allow list: if false;
-      allow write: if false;
+
+      allow create, delete: if false;
+
+      //家族の情報の変更
+      allow update: if isMember(familyId)
+        && changed().hasOnly(['homeLocation'])
+        && request.resource.data.keys().hasAll([
+             'familyName', 'inviteCode', 'creatorUserId', 'createdTime',
+             'homeLocation'])
+        && validGeoPoint(request.resource.data.homeLocation);
 
       //各家族メンバーmembers
 

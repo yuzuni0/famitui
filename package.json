@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "main": "index.ts",
   "dependencies": {
+    "@maplibre/maplibre-react-native": "^11.3.7",
     "@react-native-firebase/app": "^25.1.0",
     "@react-native-firebase/auth": "^25.1.0",
     "@react-native-firebase/firestore": "^25.1.0",
@@ -15,6 +16,7 @@
     "expo-clipboard": "~57.0.1",
     "expo-dev-client": "~57.0.9",
     "expo-image-picker": "~57.0.12",
+    "expo-location": "~57.0.13",
     "expo-status-bar": "~57.0.1",
     "react": "19.2.3",
     "react-native": "0.86.0",

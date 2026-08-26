@@ -1,11 +1,15 @@
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Button, FlatList, StyleSheet, Text, View } from 'react-native';
 
 import { errorMessage } from '../lib/errors';
+import type { MainStackParamList } from '../navigation/RootNavigator';
+import { observeFamilyDoc } from '../services/family';
 import { isBusy, observeMembers, resolveTransportMode } from '../services/member';
 import type { MemberWithId } from '../services/member';
 import { TRANSPORT_MODES } from '../types/firestore';
-import type { TransportMode } from '../types/firestore';
+import type { FamilyDoc, TransportMode } from '../types/firestore';
 
 //家族全員の移動手段と拘束状況を確認する画面
 type Props = {
@@ -39,10 +43,24 @@ function busyLabel(member: MemberWithId): string {
 
 export default function FamilyStatusPage({ familyId, uid }: Props) {
 
+  const navigation = useNavigation<NativeStackNavigationProp<MainStackParamList>>();
+
+  const [family, setFamily] = useState<FamilyDoc | null>(null);
   const [members, setMembers] = useState<MemberWithId[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  //家族の情報を監視する
+  //家族グループの情報を監視する
+  useEffect(() => {
+    setFamily(null);
+
+    const unsubscribe = observeFamilyDoc(familyId, setFamily, observeError => {
+      setError(errorMessage(observeError));
+    });
+
+    return unsubscribe;
+  }, [familyId]);
+
+  //メンバーの情報を監視する
   useEffect(() => {
     setMembers(null);
     setError(null);
@@ -73,6 +91,17 @@ export default function FamilyStatusPage({ familyId, uid }: Props) {
   return (
     <View style={styles.container}>
       {error !== null && <Text style={styles.error}>{error}</Text>}
+
+      <View style={styles.homeLocation}>
+        <Text style={styles.homeLocationLabel}>
+          家の位置：
+          {family === null ? '確認中' : family.homeLocation === null ? '未設定' : '設定済み'}
+        </Text>
+        <Button
+          title="家の位置を設定する"
+          onPress={() => navigation.navigate('HomeLocation')}
+        />
+      </View>
 
       <FlatList
         data={members}
@@ -119,6 +148,17 @@ const styles = StyleSheet.create({
   },
   list: {
     gap: 12,
+  },
+  homeLocation: {
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 4,
+    padding: 12,
+    gap: 8,
+  },
+  homeLocationLabel: {
+    fontSize: 16,
+    fontWeight: 'bold',
   },
   member: {
     borderWidth: 1,

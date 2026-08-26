@@ -38,7 +38,14 @@
         {
           "photosPermission": "保存済みの写真から不足品を検出するために使用します。"
         }
-      ]
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "近くの店舗を表示し、経路を案内するために使用します。"
+        }
+      ],
+      "@maplibre/maplibre-react-native"
     ]
   }
 }

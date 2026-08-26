@@ -39,6 +39,14 @@ export const TRANSPORT_MODES: { id: TransportMode; label: string }[] = [
   { id: 'vehicle', label: '車' },
 ];
 
+//座標を表す
+export type GeoPoint = {
+  //緯度
+  latitude: number;
+  //経度
+  longitude: number;
+};
+
 //{uid}
 export type UserDoc = {
   displayName: string;
@@ -54,6 +62,8 @@ export type FamilyDoc = {
   inviteCode: string;
   creatorUserId: string;
   createdTime: Timestamp;
+  //家の位置。未登録の間は null（家族グループの作成時は null）
+  homeLocation: GeoPoint | null;
 };
 
 //membersの{uid}

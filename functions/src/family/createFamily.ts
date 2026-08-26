@@ -39,7 +39,7 @@ export const createFamily = onCall(async (request) => {
   const db = getFirestore();
 
   const result = await db.runTransaction(async (tx) => {
-    // ユーザー情報の取得( uid の familyId )
+    // ユーザー情報の取得(uid の familyId)
     const userRef = db.collection("users").doc(uid);
 
     // 書き込みより前に全ての読み取りを終える
@@ -72,6 +72,8 @@ export const createFamily = onCall(async (request) => {
       inviteCode: inviteCodeRef.id,
       creatorUserId: uid,
       createdTime: FieldValue.serverTimestamp(),
+      // 家の位置(初期値)
+      homeLocation: null,
     });
 
     // {uid}を作成する
