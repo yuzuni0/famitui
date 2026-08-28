@@ -18,6 +18,8 @@ export type CreateItemInput = {
   maxDistanceMeters: number | null;
   note: string;
   autoNotifyEnabled: boolean;
+  //購入する店舗
+  preferredStoreId: string | null;
 };
 
 export type UpdateItemInput = Partial<CreateItemInput>;
@@ -46,6 +48,7 @@ export async function createItem(
     maxDistanceMeters: input.maxDistanceMeters,
     note: input.note,
     autoNotifyEnabled: input.autoNotifyEnabled,
+    preferredStoreId: input.preferredStoreId,
     //関数が設定するもの
     status: 'shortage',
     creatorUserId: uid,

@@ -1,14 +1,17 @@
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useIsFocused, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, Button, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View, } from 'react-native';
 import { errorMessage } from '../lib/errors';
 import type { MainStackParamList } from '../navigation/RootNavigator';
 import { createItem, deleteItem, isAssigned, isAssignedTo, isRequested, itemStateLabel, updateItem } from '../services/item';
 import type { CreateItemInput, ItemWithId } from '../services/item';
 import { cancelRequestItem, requestItem } from '../services/itemActions';
+import { observeStores } from '../services/store';
+import type { StoreWithId } from '../services/store';
 import { CATEGORIES } from '../types/firestore';
 import type { CategoryId } from '../types/firestore';
+import { takePendingStore } from './StoreSearchPage';
 
 //品目の追加と編集を行うモーダル
 
@@ -35,11 +38,12 @@ function initialFormState(item: ItemWithId | null) {
   return {
     itemName: item?.itemName ?? '',
     category: item?.category ?? ('dailyGoods' as CategoryId),
-    //item の配列をそのまま持たずに複製する
+    //item の配列を複製する
     alternativeItemNames: item ? [...item.alternativeItemNames] : [],
     maxDistanceText: item?.maxDistanceMeters != null ? String(item.maxDistanceMeters) : '',
     note: item?.note ?? '',
     autoNotifyEnabled: item?.autoNotifyEnabled ?? false,
+    preferredStoreId: item?.preferredStoreId ?? null,
   };
 }
 
@@ -50,6 +54,7 @@ type ValidationResult =
 export default function AddMissingModal({ familyId, uid, item, onClose }: Props) {
 
   const navigation = useNavigation<NativeStackNavigationProp<MainStackParamList>>();
+  const isFocused = useIsFocused();
 
   const [editing, setEditing] = useState<boolean>(item === null);
 
@@ -70,8 +75,46 @@ export default function AddMissingModal({ familyId, uid, item, onClose }: Props)
   const [autoNotifyEnabled, setAutoNotifyEnabled] = useState<boolean>(
     () => initialFormState(item).autoNotifyEnabled,
   );
+  //指定中の店舗
+  const [preferredStoreId, setPreferredStoreId] = useState<string | null>(
+    () => initialFormState(item).preferredStoreId,
+  );
+  const [pendingStoreName, setPendingStoreName] = useState<string | null>(null);
+  //登録済みの店舗の一覧
+  const [stores, setStores] = useState<StoreWithId[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  //店舗の一覧を監視する
+  useEffect(() => {
+    setStores(null);
+    const unsubscribe = observeStores(familyId, setStores);
+    return unsubscribe;
+  }, [familyId]);
+
+  //StoreSearch から戻ってきた時に、選んだ店舗を受け取る
+  useFocusEffect(
+    useCallback(() => {
+      const pending = takePendingStore();
+      if (pending === null) {
+        return;
+      }
+      setPreferredStoreId(pending.sourceId);
+      setPendingStoreName(pending.name);
+    }, []),
+  );
+
+  //表示用の店舗名
+  const preferredStoreName = useMemo<string | null>(() => {
+    if (preferredStoreId === null) {
+      return null;
+    }
+    const store = stores?.find(entry => entry.id === preferredStoreId);
+    if (store !== undefined) {
+      return store.storeName;
+    }
+    return pendingStoreName ?? preferredStoreId;
+  }, [preferredStoreId, stores, pendingStoreName]);
 
   //完了済みの品目は編集できない
   //担当が決まっている間は、担当している本人だけが編集できる
@@ -97,6 +140,8 @@ export default function AddMissingModal({ familyId, uid, item, onClose }: Props)
     setMaxDistanceText(initial.maxDistanceText);
     setNote(initial.note);
     setAutoNotifyEnabled(initial.autoNotifyEnabled);
+    setPreferredStoreId(initial.preferredStoreId);
+    setPendingStoreName(null);
     setAlternativeInput('');
     setEditingIndex(null);
     setError(null);
@@ -207,8 +252,23 @@ export default function AddMissingModal({ familyId, uid, item, onClose }: Props)
         maxDistanceMeters,
         note: trimmedNote,
         autoNotifyEnabled,
+        preferredStoreId,
       },
     };
+  }
+
+  //店舗を選ぶ画面へ移る
+  function handleSelectStore() {
+    if (submitting) {
+      return;
+    }
+    navigation.navigate('StoreSearch');
+  }
+
+  //店舗の指定を解除する
+  function handleClearStore() {
+    setPreferredStoreId(null);
+    setPendingStoreName(null);
   }
 
   //保存する
@@ -308,7 +368,7 @@ export default function AddMissingModal({ familyId, uid, item, onClose }: Props)
   }
 
   return (
-    <Modal visible animationType="slide" transparent onRequestClose={onClose}>
+    <Modal visible={isFocused} animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.backdrop}>
         <View style={styles.sheet}>
           <ScrollView contentContainerStyle={styles.content}>
@@ -348,6 +408,9 @@ export default function AddMissingModal({ familyId, uid, item, onClose }: Props)
                 <Text style={styles.value}>
                   {item.maxDistanceMeters != null ? String(item.maxDistanceMeters) : '指定なし'}
                 </Text>
+
+                <Text style={styles.label}>購入する店舗</Text>
+                <Text style={styles.value}>{preferredStoreName ?? '指定なし'}</Text>
 
                 {item.note !== '' && (
                   <>
@@ -463,6 +526,15 @@ export default function AddMissingModal({ familyId, uid, item, onClose }: Props)
                     onValueChange={setAutoNotifyEnabled}
                     disabled={submitting}
                   />
+                </View>
+
+                <Text style={styles.label}>購入する店舗</Text>
+                <Text style={styles.value}>{preferredStoreName ?? '指定なし'}</Text>
+                <View style={styles.alternativeButtons}>
+                  <Button title="店舗を指定する" onPress={handleSelectStore} disabled={submitting} />
+                  {preferredStoreId !== null && (
+                    <Button title="指定を解除する" onPress={handleClearStore} disabled={submitting} />
+                  )}
                 </View>
               </>
             )}

@@ -155,6 +155,7 @@ export default function DetectionResultPage({ familyId, uid, storagePath, mode }
           maxDistanceMeters: null,
           note: '',
           autoNotifyEnabled: false,
+          preferredStoreId: null,
         });
       } catch (submitError) {
         //既に登録した品目はそのまま残す

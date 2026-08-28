@@ -16,6 +16,7 @@ import MyStatusPage from '../pages/MyStatusPage';
 import ProfileSetupPage from '../pages/ProfileSetupPage';
 import PurchaseReportPage from '../pages/PurchaseReportPage';
 import SignUpPage from '../pages/SignUpPage';
+import StoreSearchPage from '../pages/StoreSearchPage';
 import TaskDetailPage from '../pages/TaskDetailPage';
 import { observeAuthState } from '../services/auth';
 import { observeUserDoc } from '../services/user';
@@ -50,6 +51,7 @@ export type MainStackParamList = {
   MyStatus: undefined;
   FamilyStatus: undefined;
   HomeLocation: undefined;
+  StoreSearch: undefined;
   Camera: { mode: CameraMode };
   DetectionResult: { storagePath: string; mode: CameraMode };
 };
@@ -176,6 +178,9 @@ export default function RootNavigator() {
       </MainStack.Screen>
       <MainStack.Screen name="HomeLocation" options={{ title: '家の位置' }}>
         {() => <HomeLocationPage familyId={familyId} />}
+      </MainStack.Screen>
+      <MainStack.Screen name="StoreSearch" options={{ title: '店舗を選ぶ' }}>
+        {() => <StoreSearchPage familyId={familyId} uid={uid} />}
       </MainStack.Screen>
       <MainStack.Screen name="Camera" options={{ title: '撮影する' }}>
         {({ route }) => (

@@ -107,6 +107,21 @@ export type ItemDoc = {
 
   activeAssignmentId: string | null;
   rejectedUserIds: string[];
+  preferredStoreId: string | null;
+};
+
+ //stores内のデータ
+export type StoreDoc = {
+  storeName: string;
+  //座標
+  location: GeoPoint;
+  address: string | null;
+  //扱うカテゴリ
+  categories: CategoryId[];
+  //店舗検索
+  sourceId: string;
+  creatorUserId: string;
+  createdTime: Timestamp;
 };
 
 export type AssignmentDoc = {

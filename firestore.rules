@@ -84,6 +84,25 @@ service cloud.firestore {
             && v.longitude >= -180 && v.longitude <= 180);
     }
 
+    //店舗の指定
+    function nullOrStoreId(v) {
+      return v == null || v is string;
+    }
+
+    function validStoreName(v) {
+      return v is string && v.size() > 0 && v.size() <= 50;
+    }
+
+    //店舗が扱うカテゴリ
+    function validStoreCategories(v) {
+      return v is list && v.size() <= 5
+        && (v.size() < 1 || validCategory(v[0]))
+        && (v.size() < 2 || validCategory(v[1]))
+        && (v.size() < 3 || validCategory(v[2]))
+        && (v.size() < 4 || validCategory(v[3]))
+        && (v.size() < 5 || validCategory(v[4]));
+    }
+
     //ユーザー情報(users)
 
     match /users/{uid} {
@@ -120,7 +139,7 @@ service cloud.firestore {
       allow write: if false;
     }
 
-    //家族分け(families)
+    //家族分け(families)　
 
     match /families/{familyId} {
       allow get: if isMember(familyId);
@@ -170,13 +189,13 @@ service cloud.firestore {
                'alternativeItemNames', 'maxDistanceMeters', 'note',
                'autoNotifyEnabled', 'creatorUserId', 'createdTime',
                'requestedTime', 'requesterUserId', 'completedTime',
-               'activeAssignmentId', 'rejectedUserIds'])
+               'activeAssignmentId', 'rejectedUserIds', 'preferredStoreId'])
           && request.resource.data.keys().hasAll([
                'itemName', 'category', 'status',
                'alternativeItemNames', 'maxDistanceMeters', 'note',
                'autoNotifyEnabled', 'creatorUserId', 'createdTime',
                'requestedTime', 'requesterUserId', 'completedTime',
-               'activeAssignmentId', 'rejectedUserIds'])
+               'activeAssignmentId', 'rejectedUserIds', 'preferredStoreId'])
           && request.resource.data.creatorUserId == request.auth.uid
           && request.resource.data.status == 'shortage'
           && request.resource.data.createdTime == request.time
@@ -185,6 +204,7 @@ service cloud.firestore {
           && request.resource.data.completedTime == null
           && request.resource.data.activeAssignmentId == null
           && request.resource.data.rejectedUserIds == []
+          && nullOrStoreId(request.resource.data.preferredStoreId)
           && validItemName(request.resource.data.itemName)
           && validCategory(request.resource.data.category)
           && validNote(request.resource.data.note)
@@ -199,25 +219,78 @@ service cloud.firestore {
               || resource.data.activeAssignmentId == itemId + '_' + request.auth.uid)
           && changed().hasOnly([
                'itemName', 'category', 'alternativeItemNames',
-               'maxDistanceMeters', 'note', 'autoNotifyEnabled'])
+               'maxDistanceMeters', 'note', 'autoNotifyEnabled', 'preferredStoreId'])
           && request.resource.data.keys().hasAll([
                'itemName', 'category', 'status',
                'alternativeItemNames', 'maxDistanceMeters', 'note',
                'autoNotifyEnabled', 'creatorUserId', 'createdTime',
                'requestedTime', 'requesterUserId', 'completedTime',
-               'activeAssignmentId', 'rejectedUserIds'])
+               'activeAssignmentId', 'rejectedUserIds', 'preferredStoreId'])
           && validItemName(request.resource.data.itemName)
           && validCategory(request.resource.data.category)
           && validNote(request.resource.data.note)
           && request.resource.data.autoNotifyEnabled is bool
           && validMaxDistance(request.resource.data.maxDistanceMeters)
-          && validAlternatives(request.resource.data.alternativeItemNames);
+          && validAlternatives(request.resource.data.alternativeItemNames)
+          && nullOrStoreId(request.resource.data.preferredStoreId);
 
         //依頼も担当も付いていない不足品だけを消せる
         allow delete: if isMember(familyId)
           && resource.data.status != 'completed'
           && resource.data.requesterUserId == null
           && resource.data.activeAssignmentId == null;
+      }
+
+      //店舗(stores)
+      match /stores/{storeId} {
+        allow read: if isMember(familyId);
+
+        allow create: if isMember(familyId)
+          && request.resource.data.keys().hasOnly([
+               'storeName', 'location', 'address', 'categories',
+               'sourceId', 'creatorUserId', 'createdTime'])
+          && request.resource.data.keys().hasAll([
+               'storeName', 'location', 'address', 'categories',
+               'sourceId', 'creatorUserId', 'createdTime'])
+          && validStoreName(request.resource.data.storeName)
+          //座標は必須
+          && request.resource.data.location != null
+          && validGeoPoint(request.resource.data.location)
+          && nullOrString(request.resource.data.address, 200)
+          && validStoreCategories(request.resource.data.categories)
+          //sourceId との一致が前提
+          && request.resource.data.sourceId is string
+          && request.resource.data.sourceId.size() > 0
+          && request.resource.data.sourceId == storeId
+          && request.resource.data.creatorUserId == request.auth.uid
+          && request.resource.data.createdTime == request.time;
+
+        allow update: if isMember(familyId)
+          && ((changed().hasOnly(['storeName', 'categories'])
+               && request.resource.data.keys().hasAll([
+                    'storeName', 'location', 'address', 'categories',
+                    'sourceId', 'creatorUserId', 'createdTime'])
+               && validStoreName(request.resource.data.storeName)
+               && validStoreCategories(request.resource.data.categories))
+              || (request.resource.data.keys().hasOnly([
+                    'storeName', 'location', 'address', 'categories',
+                    'sourceId', 'creatorUserId', 'createdTime'])
+                  && request.resource.data.keys().hasAll([
+                    'storeName', 'location', 'address', 'categories',
+                    'sourceId', 'creatorUserId', 'createdTime'])
+                  && validStoreName(request.resource.data.storeName)
+                  && request.resource.data.location != null
+                  && validGeoPoint(request.resource.data.location)
+                  && nullOrString(request.resource.data.address, 200)
+                  && validStoreCategories(request.resource.data.categories)
+                  && request.resource.data.sourceId is string
+                  && request.resource.data.sourceId.size() > 0
+                  && request.resource.data.sourceId == storeId
+                  && request.resource.data.creatorUserId == request.auth.uid
+                  && request.resource.data.createdTime == request.time));
+
+
+        allow delete: if isMember(familyId);
       }
 
       //割り当て(assignments)
