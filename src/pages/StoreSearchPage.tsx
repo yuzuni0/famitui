@@ -10,13 +10,12 @@ import { errorMessage } from '../lib/errors';
 import type { MainStackParamList } from '../navigation/RootNavigator';
 import { searchPlaces } from '../services/mapSearch';
 import type { SearchResult } from '../services/mapSearch';
-import { createStore } from '../services/store';
-import type { GeoPoint } from '../types/firestore';
+import { classifyStore } from '../services/storeActions';
+import type { CategoryId, GeoPoint } from '../types/firestore';
 
 //キーワードで店舗を検索し、地図で確認して選ぶ画面
 type Props = {
   familyId: string;
-  uid: string;
 };
 
 //自宅位置の指定とほぼ同じ
@@ -29,10 +28,13 @@ const DEFAULT_CENTER: GeoPoint = { latitude: 35.681236, longitude: 139.767125 };
 const INITIAL_ZOOM = 14;
 const SELECTED_ZOOM = 16;
 
-let pendingStore: SearchResult | null = null;
+//登録店舗に必要な情報を持つ
+export type PendingStore = SearchResult & { categories: CategoryId[] };
+
+let pendingStore: PendingStore | null = null;
 
 //選んだ店舗を取り出す
-export function takePendingStore(): SearchResult | null {
+export function takePendingStore(): PendingStore | null {
   const store = pendingStore;
   pendingStore = null;
   return store;
@@ -65,7 +67,7 @@ function formatDistance(meters: number): string {
   return `${(meters / 1000).toFixed(1)}km`;
 }
 
-export default function StoreSearchPage({ familyId, uid }: Props) {
+export default function StoreSearchPage({ familyId }: Props) {
 
   const navigation = useNavigation<NativeStackNavigationProp<MainStackParamList>>();
   const mapRef = useRef<MapRef>(null);
@@ -203,13 +205,14 @@ export default function StoreSearchPage({ familyId, uid }: Props) {
     setError(null);
     setSubmitting(true);
     try {
-      await createStore(familyId, uid, {
+      const { categories } = await classifyStore(familyId, {
         sourceId: selected.sourceId,
         storeName: selected.name,
         location: selected.location,
         address: selected.address,
+        osmCategories: selected.osmCategories,
       });
-      pendingStore = selected;
+      pendingStore = { ...selected, categories };
       navigation.goBack();
     } catch (submitError) {
       setError(errorMessage(submitError));
@@ -322,8 +325,12 @@ export default function StoreSearchPage({ familyId, uid }: Props) {
             {currentLocation !== null ? '現在地から' : '検索の中心から'}{' '}
             {formatDistance(selected.distanceMeters)}
           </Text>
+          <Text style={styles.detailText}>登録の際に取り扱いを自動で判定します</Text>
           {submitting ? (
-            <ActivityIndicator />
+            <View style={styles.submittingRow}>
+              <ActivityIndicator />
+              <Text style={styles.detailText}>取り扱いを判定しています…</Text>
+            </View>
           ) : (
             <Button title="この店舗にする" onPress={handleSubmit} />
           )}
@@ -437,6 +444,14 @@ const styles = StyleSheet.create({
   },
   detailText: {
     color: '#666',
+  },
+  //判定中の表示
+  submittingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    padding: 8,
   },
   empty: {
     textAlign: 'center',

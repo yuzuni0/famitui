@@ -17,6 +17,7 @@ export type SearchResult = {
   address: string | null;
   //検索の中心地点からの距離
   distanceMeters: number;
+  osmCategories: string[];
 };
 
 type GeocodingContext = {
@@ -30,7 +31,7 @@ type GeocodingFeature = {
   text?: unknown;
   context?: unknown;
   geometry?: { coordinates?: unknown };
-  properties?: { feature_tags?: { branch?: unknown } };
+  properties?: { categories?: unknown; feature_tags?: { branch?: unknown } };
 };
 
 //住所を示す要素
@@ -116,6 +117,16 @@ function toStoreName(text: string, branch: unknown): string {
   return `${text} ${trimmed}`;
 }
 
+function toOsmCategories(categories: unknown): string[] {
+  if (!Array.isArray(categories)) {
+    return [];
+  }
+  if (!categories.every(entry => typeof entry === 'string')) {
+    return [];
+  }
+  return categories;
+}
+
 //feature を SearchResult に変換する
 function toSearchResult(feature: GeocodingFeature, center: GeoPoint): SearchResult | null {
   const { id, text, context, geometry, properties } = feature;
@@ -141,6 +152,7 @@ function toSearchResult(feature: GeocodingFeature, center: GeoPoint): SearchResu
     location,
     address: toAddress(context),
     distanceMeters: distanceMeters(center, location),
+    osmCategories: toOsmCategories(properties?.categories),
   };
 }
 

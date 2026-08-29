@@ -180,7 +180,7 @@ export default function RootNavigator() {
         {() => <HomeLocationPage familyId={familyId} />}
       </MainStack.Screen>
       <MainStack.Screen name="StoreSearch" options={{ title: '店舗を選ぶ' }}>
-        {() => <StoreSearchPage familyId={familyId} uid={uid} />}
+        {() => <StoreSearchPage familyId={familyId} />}
       </MainStack.Screen>
       <MainStack.Screen name="Camera" options={{ title: '撮影する' }}>
         {({ route }) => (

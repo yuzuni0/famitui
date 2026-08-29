@@ -33,6 +33,14 @@ function categoryLabel(category: CategoryId): string {
   return CATEGORIES.find(entry => entry.id === category)?.label ?? category;
 }
 
+//複数のカテゴリをまとめて表示する
+function storeCategoriesLabel(categories: CategoryId[]): string {
+  if (categories.length === 0) {
+    return '取り扱い不明';
+  }
+  return categories.map(categoryLabel).join('・');
+}
+
 //入力欄の初期値を item から作る
 function initialFormState(item: ItemWithId | null) {
   return {
@@ -80,6 +88,9 @@ export default function AddMissingModal({ familyId, uid, item, onClose }: Props)
     () => initialFormState(item).preferredStoreId,
   );
   const [pendingStoreName, setPendingStoreName] = useState<string | null>(null);
+  const [pendingStoreCategories, setPendingStoreCategories] = useState<CategoryId[] | null>(
+    null,
+  );
   //登録済みの店舗の一覧
   const [stores, setStores] = useState<StoreWithId[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -101,7 +112,14 @@ export default function AddMissingModal({ familyId, uid, item, onClose }: Props)
       }
       setPreferredStoreId(pending.sourceId);
       setPendingStoreName(pending.name);
+      setPendingStoreCategories(pending.categories);
     }, []),
+  );
+
+  //指定中の店舗
+  const preferredStore = useMemo<StoreWithId | undefined>(
+    () => stores?.find(entry => entry.id === preferredStoreId),
+    [preferredStoreId, stores],
   );
 
   //表示用の店舗名
@@ -109,12 +127,22 @@ export default function AddMissingModal({ familyId, uid, item, onClose }: Props)
     if (preferredStoreId === null) {
       return null;
     }
-    const store = stores?.find(entry => entry.id === preferredStoreId);
-    if (store !== undefined) {
-      return store.storeName;
+    if (preferredStore !== undefined) {
+      return preferredStore.storeName;
     }
     return pendingStoreName ?? preferredStoreId;
-  }, [preferredStoreId, stores, pendingStoreName]);
+  }, [preferredStoreId, preferredStore, pendingStoreName]);
+
+  //表示用の店舗のカテゴリ
+  const preferredStoreCategories = useMemo<CategoryId[] | null>(() => {
+    if (preferredStoreId === null) {
+      return null;
+    }
+    if (preferredStore !== undefined) {
+      return preferredStore.categories;
+    }
+    return pendingStoreCategories ?? [];
+  }, [preferredStoreId, preferredStore, pendingStoreCategories]);
 
   //完了済みの品目は編集できない
   //担当が決まっている間は、担当している本人だけが編集できる
@@ -142,6 +170,7 @@ export default function AddMissingModal({ familyId, uid, item, onClose }: Props)
     setAutoNotifyEnabled(initial.autoNotifyEnabled);
     setPreferredStoreId(initial.preferredStoreId);
     setPendingStoreName(null);
+    setPendingStoreCategories(null);
     setAlternativeInput('');
     setEditingIndex(null);
     setError(null);
@@ -269,6 +298,7 @@ export default function AddMissingModal({ familyId, uid, item, onClose }: Props)
   function handleClearStore() {
     setPreferredStoreId(null);
     setPendingStoreName(null);
+    setPendingStoreCategories(null);
   }
 
   //保存する
@@ -411,6 +441,9 @@ export default function AddMissingModal({ familyId, uid, item, onClose }: Props)
 
                 <Text style={styles.label}>購入する店舗</Text>
                 <Text style={styles.value}>{preferredStoreName ?? '指定なし'}</Text>
+                {preferredStoreCategories !== null && (
+                  <Text style={styles.note}>{storeCategoriesLabel(preferredStoreCategories)}</Text>
+                )}
 
                 {item.note !== '' && (
                   <>
@@ -530,6 +563,9 @@ export default function AddMissingModal({ familyId, uid, item, onClose }: Props)
 
                 <Text style={styles.label}>購入する店舗</Text>
                 <Text style={styles.value}>{preferredStoreName ?? '指定なし'}</Text>
+                {preferredStoreCategories !== null && (
+                  <Text style={styles.note}>{storeCategoriesLabel(preferredStoreCategories)}</Text>
+                )}
                 <View style={styles.alternativeButtons}>
                   <Button title="店舗を指定する" onPress={handleSelectStore} disabled={submitting} />
                   {preferredStoreId !== null && (
