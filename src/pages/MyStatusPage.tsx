@@ -5,6 +5,7 @@ import { ActivityIndicator, Button, Pressable, ScrollView, StyleSheet, Text, Tex
 
 import { errorMessage } from '../lib/errors';
 import type { MainStackParamList } from '../navigation/RootNavigator';
+import { initBackgroundLocation, startBackgroundLocation, stopBackgroundLocation, } from '../services/backgroundLocation';
 import { busyUntilTimeFromNow, isBusy, observeMember, resolveTransportMode, transportModeExpireTime, updateMemberStatus, } from '../services/member';
 import type { MemberWithId } from '../services/member';
 import { TRANSPORT_MODES } from '../types/firestore';
@@ -165,6 +166,25 @@ export default function MyStatusPage({ familyId, uid }: Props) {
     setSubmitting(false);
   }
 
+  //位置情報の取得を開始する
+  async function handleStartLocation() {
+    try {
+      await initBackgroundLocation();
+      await startBackgroundLocation();
+    } catch (locationError) {
+      setError(errorMessage(locationError));
+    }
+  }
+
+  //位置情報の取得を停止する
+  async function handleStopLocation() {
+    try {
+      await stopBackgroundLocation();
+    } catch (locationError) {
+      setError(errorMessage(locationError));
+    }
+  }
+
   //読み込み中の表示
   if (!memberLoaded) {
     return (
@@ -285,6 +305,8 @@ export default function MyStatusPage({ familyId, uid }: Props) {
           onPress={handleClearBusy}
           disabled={submitting || member.busyUntilTime === null}
         />
+        <Button title="位置監視を開始する（テスト）" onPress={handleStartLocation} />
+        <Button title="位置監視を停止する（テスト）" onPress={handleStopLocation} />
       </ScrollView>
 
       <Button title="閉じる" onPress={() => navigation.goBack()} disabled={submitting} />
