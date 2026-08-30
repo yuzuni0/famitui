@@ -12,6 +12,8 @@ import type { ItemWithId } from '../services/item';
 import { cancelAssignment } from '../services/itemActions';
 import { observeMembers } from '../services/member';
 import type { MemberWithId } from '../services/member';
+import { observeStores } from '../services/store';
+import type { StoreWithId } from '../services/store';
 import { CATEGORIES } from '../types/firestore';
 import type { CategoryId } from '../types/firestore';
 
@@ -42,6 +44,7 @@ export default function TaskDetailPage({ familyId, uid, itemId }: Props) {
 
   const [items, setItems] = useState<ItemWithId[] | null>(null);
   const [members, setMembers] = useState<MemberWithId[] | null>(null);
+  const [stores, setStores] = useState<StoreWithId[] | null>(null);
   const [assignment, setAssignment] = useState<AssignmentWithId | null>(null);
   const [assignmentLoaded, setAssignmentLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -87,6 +90,13 @@ export default function TaskDetailPage({ familyId, uid, itemId }: Props) {
     return unsubscribe;
   }, [familyId]);
 
+  //購入する店舗の名前を表示するための監視
+  useEffect(() => {
+    setStores(null);
+    const unsubscribe = observeStores(familyId, setStores);
+    return unsubscribe;
+  }, [familyId]);
+
   //自分の担当品を監視する
   useEffect(() => {
     setAssignment(null);
@@ -128,6 +138,21 @@ export default function TaskDetailPage({ familyId, uid, itemId }: Props) {
       item.requesterUserId
     );
   }, [item, members]);
+
+  //購入する店舗の名前を取得する
+  const preferredStoreName = useMemo(() => {
+    if (item === null || item.preferredStoreId === null) {
+      return '指定なし';
+    }
+    const found = stores?.find(store => store.id === item.preferredStoreId);
+    if (found !== undefined) {
+      return found.storeName;
+    }
+    if (stores === null) {
+      return '読み込み中…';
+    }
+    return '指定した店舗が見つかりません';
+  }, [item, stores]);
 
   //担当を辞退して依頼品へ戻す
   async function handleCancelAssignment() {
@@ -184,6 +209,9 @@ export default function TaskDetailPage({ familyId, uid, itemId }: Props) {
   //担当として有効化を確認する
   const active = assignment.status === 'active';
 
+  //ナビゲーションで向かう店舗。条件の中では string に絞り込めないため変数に取り出す
+  const preferredStoreId = item.preferredStoreId;
+
   return (
     <View style={styles.container}>
       {error !== null && <Text style={styles.error}>{error}</Text>}
@@ -215,6 +243,9 @@ export default function TaskDetailPage({ familyId, uid, itemId }: Props) {
           {item.maxDistanceMeters != null ? String(item.maxDistanceMeters) : '指定なし'}
         </Text>
 
+        <Text style={styles.label}>購入する店舗</Text>
+        <Text style={styles.value}>{preferredStoreName}</Text>
+
         {item.note !== '' && (
           <>
             <Text style={styles.label}>備考</Text>
@@ -230,6 +261,14 @@ export default function TaskDetailPage({ familyId, uid, itemId }: Props) {
           {remainingLabel(assignment)}
         </Text>
       </ScrollView>
+
+      {preferredStoreId !== null && (
+        <Button
+          title="ナビゲーション"
+          onPress={() => navigation.navigate('Route', { storeId: preferredStoreId })}
+          disabled={submitting}
+        />
+      )}
 
       {active && (
         <>

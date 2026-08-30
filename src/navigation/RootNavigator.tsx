@@ -15,6 +15,7 @@ import LoginPage from '../pages/LoginPage';
 import MyStatusPage from '../pages/MyStatusPage';
 import ProfileSetupPage from '../pages/ProfileSetupPage';
 import PurchaseReportPage from '../pages/PurchaseReportPage';
+import RoutePage from '../pages/RoutePage';
 import SignUpPage from '../pages/SignUpPage';
 import StoreSearchPage from '../pages/StoreSearchPage';
 import TaskDetailPage from '../pages/TaskDetailPage';
@@ -47,6 +48,7 @@ export type MainStackParamList = {
   AcceptRequest: { initialItemId: string };
   AssignedList: undefined;
   AssignmentDetail: { itemId: string };
+  Route: { storeId: string };
   PurchaseReport: { initialItemId: string };
   MyStatus: undefined;
   FamilyStatus: undefined;
@@ -150,6 +152,11 @@ export default function RootNavigator() {
       <MainStack.Screen name="AssignmentDetail" options={{ title: '担当の詳細' }}>
         {({ route }) => (
           <TaskDetailPage familyId={familyId} uid={uid} itemId={route.params.itemId} />
+        )}
+      </MainStack.Screen>
+      <MainStack.Screen name="Route" options={{ title: 'ナビゲーション' }}>
+        {({ route }) => (
+          <RoutePage familyId={familyId} uid={uid} storeId={route.params.storeId} />
         )}
       </MainStack.Screen>
       <MainStack.Screen name="AcceptRequest" options={{ title: '依頼を受け付ける' }}>

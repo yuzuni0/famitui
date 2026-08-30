@@ -16,3 +16,4 @@ export { reportPurchase } from "./item/reportPurchase";
 export { cancelAssignment } from "./item/cancelAssignment";
 export { detectItems } from "./photo/detectItems";
 export { storeCategories } from "./store/storeCategories";
+export { getRoute } from "./route/getRoute";

@@ -130,8 +130,14 @@ export default function AddMissingModal({ familyId, uid, item, onClose }: Props)
     if (preferredStore !== undefined) {
       return preferredStore.storeName;
     }
-    return pendingStoreName ?? preferredStoreId;
-  }, [preferredStoreId, preferredStore, pendingStoreName]);
+    if (pendingStoreName !== null) {
+      return pendingStoreName;
+    }
+    if (stores === null) {
+      return '読み込み中…';
+    }
+    return '指定した店舗が見つかりません';
+  }, [preferredStoreId, preferredStore, pendingStoreName, stores]);
 
   //表示用の店舗のカテゴリ
   const preferredStoreCategories = useMemo<CategoryId[] | null>(() => {
@@ -141,7 +147,7 @@ export default function AddMissingModal({ familyId, uid, item, onClose }: Props)
     if (preferredStore !== undefined) {
       return preferredStore.categories;
     }
-    return pendingStoreCategories ?? [];
+    return pendingStoreCategories;
   }, [preferredStoreId, preferredStore, pendingStoreCategories]);
 
   //完了済みの品目は編集できない
