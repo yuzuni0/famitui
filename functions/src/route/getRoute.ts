@@ -2,6 +2,7 @@ import { onCall, HttpsError } from "firebase-functions/https";
 import { defineSecret } from "firebase-functions/params";
 import { logger } from "firebase-functions/v2";
 import { getFirestore } from "firebase-admin/firestore";
+import { GeoPoint, isGeoPoint } from "../lib/geo";
 
 const openRouteServiceApiKey = defineSecret("OPENROUTESERVICE_API_KEY");
 
@@ -14,11 +15,6 @@ const PROFILES = [
 
 type Profile = (typeof PROFILES)[number];
 
-type GeoPoint = {
-  latitude: number;
-  longitude: number;
-};
-
 type Route = {
   coordinates: GeoPoint[];
   distanceMeters: number;
@@ -29,24 +25,6 @@ const ORS_BASE_URL = "https://api.openrouteservice.org/v2/directions";
 
 function isProfile(value: unknown): value is Profile {
   return PROFILES.includes(value as Profile);
-}
-
-// 緯度と経度の型を確認する
-function isGeoPoint(value: unknown): value is GeoPoint {
-  if (typeof value !== "object" || value === null) {
-    return false;
-  }
-  const { latitude, longitude } = value as {
-    latitude?: unknown; longitude?: unknown;
-  };
-  if (typeof latitude !== "number" || typeof longitude !== "number") {
-    return false;
-  }
-  if (Number.isNaN(latitude) || Number.isNaN(longitude)) {
-    return false;
-  }
-  return latitude >= -90 && latitude <= 90 &&
-    longitude >= -180 && longitude <= 180;
 }
 
 // 緯度・経度の配列に変換する
