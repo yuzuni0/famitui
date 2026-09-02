@@ -2,6 +2,7 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Button, Pressable, SectionList, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { errorMessage } from '../lib/errors';
 import type { MainStackParamList } from '../navigation/RootNavigator';
@@ -37,6 +38,7 @@ function buildSections(items: ItemWithId[]): ItemSection[] {
 
 export default function ItemListPage({ familyId, uid }: Props) {
   const navigation = useNavigation<NativeStackNavigationProp<MainStackParamList>>();
+  const insets = useSafeAreaInsets();
 
   const [items, setItems] = useState<ItemWithId[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -80,8 +82,13 @@ export default function ItemListPage({ familyId, uid }: Props) {
   if (items === null) {
     return (
       <View style={styles.loading}>
-        <ActivityIndicator size="large" />
-        {error !== null && <Text style={styles.error}>{error}</Text>}
+        <ActivityIndicator size="large" color="#06c" />
+        <Text style={styles.loadingText}>不足品を読み込んでいます…</Text>
+        {error !== null && (
+          <View style={[styles.errorBanner, styles.loadingBanner]}>
+            <Text style={styles.errorText}>{error}</Text>
+          </View>
+        )}
       </View>
     );
   }
@@ -92,7 +99,11 @@ export default function ItemListPage({ familyId, uid }: Props) {
 
   return (
     <View style={styles.container}>
-      {error !== null && <Text style={styles.error}>{error}</Text>}
+      {error !== null && (
+        <View style={[styles.errorBanner, styles.topBanner]}>
+          <Text style={styles.errorText}>{error}</Text>
+        </View>
+      )}
 
       <SectionList
         sections={sections}
@@ -100,13 +111,25 @@ export default function ItemListPage({ familyId, uid }: Props) {
         contentContainerStyle={styles.list}
         stickySectionHeadersEnabled={false}
         ListEmptyComponent={
-          <Text style={styles.empty}>不足品はまだ登録されていません。</Text>
+          <View style={styles.empty}>
+            <View style={styles.emptyIconCircle}>
+              <Text style={styles.emptyIcon}>🧺</Text>
+            </View>
+            <Text style={styles.emptyTitle}>不足品はまだありません</Text>
+            <Text style={styles.emptyDescription}>
+              手で追加するか、冷蔵庫や棚を撮影して検出できます。
+            </Text>
+            <Button title="不足品を追加する" onPress={() => setCreating(true)} />
+          </View>
         }
         renderSectionHeader={({ section }) => (
           <Text style={styles.sectionHeader}>{section.title}</Text>
         )}
         renderItem={({ item }) => (
-          <Pressable style={styles.item} onPress={() => handlePressItem(item)}>
+          <Pressable
+            style={({ pressed }) => [styles.item, pressed && styles.itemPressed]}
+            onPress={() => handlePressItem(item)}
+          >
             <Text style={styles.itemName}>{item.itemName}</Text>
             <Text style={styles.meta}>{itemStateLabel(item)}</Text>
             {item.note !== '' && <Text style={styles.note}>{item.note}</Text>}
@@ -114,18 +137,20 @@ export default function ItemListPage({ familyId, uid }: Props) {
         )}
       />
 
-      <Button title="不足品を追加する" onPress={() => setCreating(true)} />
+      <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 16) }]}>
+        <Button title="不足品を追加する" onPress={() => setCreating(true)} />
 
-      {/* 撮影画面に遷移するボタン */}
-      <Button
-        title="基準を登録する"
-        onPress={() => navigation.navigate('Camera', { mode: 'baseline' })}
-      />
+        {/* 撮影画面に遷移するボタン */}
+        <Button
+          title="基準を登録する"
+          onPress={() => navigation.navigate('Camera', { mode: 'baseline' })}
+        />
 
-      <Button
-        title="不足品を検出する"
-        onPress={() => navigation.navigate('Camera', { mode: 'detect' })}
-      />
+        <Button
+          title="不足品を検出する"
+          onPress={() => navigation.navigate('Camera', { mode: 'detect' })}
+        />
+      </View>
 
       {(creating || selectedItem !== null) && (
         <AddMissingModal
@@ -148,43 +173,105 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 12,
+    padding: 24,
+    backgroundColor: '#f4f6f8',
+  },
+  loadingText: {
+    color: '#6b7280',
+  },
+  loadingBanner: {
+    alignSelf: 'stretch',
   },
   container: {
     flex: 1,
-    padding: 24,
-    gap: 12,
+    backgroundColor: '#f4f6f8',
+  },
+  errorBanner: {
+    backgroundColor: '#fdecec',
+    borderLeftWidth: 4,
+    borderLeftColor: '#c00',
+    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+  },
+  topBanner: {
+    marginHorizontal: 16,
+    marginTop: 16,
+  },
+  errorText: {
+    color: '#b42318',
+    fontSize: 14,
+    lineHeight: 20,
   },
   list: {
+    padding: 16,
     gap: 12,
   },
   sectionHeader: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    backgroundColor: '#fff',
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#6b7280',
+    marginTop: 8,
   },
   item: {
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 4,
-    padding: 12,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
     gap: 4,
+    shadowColor: '#000',
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+  },
+  itemPressed: {
+    opacity: 0.7,
   },
   itemName: {
     fontSize: 16,
     fontWeight: 'bold',
+    color: '#111827',
   },
   meta: {
-    color: '#666',
+    color: '#6b7280',
   },
   note: {
-    color: '#666',
+    color: '#6b7280',
   },
   empty: {
-    textAlign: 'center',
-    color: '#666',
+    alignItems: 'center',
+    paddingVertical: 48,
+    paddingHorizontal: 24,
+    gap: 12,
   },
-  error: {
+  emptyIconCircle: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#e8eef5',
+  },
+  emptyIcon: {
+    fontSize: 32,
+  },
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#111827',
     textAlign: 'center',
-    color: '#c00',
+  },
+  emptyDescription: {
+    color: '#6b7280',
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  footer: {
+    backgroundColor: '#fff',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#e5e7eb',
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    gap: 4,
   },
 });

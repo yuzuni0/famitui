@@ -2,14 +2,16 @@ import { Camera, GeoJSONSource, Layer, Map, Marker } from '@maplibre/maplibre-re
 import type { LngLatBounds, ViewPadding } from '@maplibre/maplibre-react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import * as Location from 'expo-location';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Button, Pressable, ScrollView, StyleSheet, Text, View, } from 'react-native';
 
 import { errorMessage } from '../lib/errors';
+import { formatDistance, formatDuration } from '../lib/format';
+import { MAP_STYLE_URL, toLngLat } from '../lib/map';
 import type { MainStackParamList } from '../navigation/RootNavigator';
 import { isAssignedTo, observeItems } from '../services/item';
 import type { ItemWithId } from '../services/item';
+import { fetchCurrentLocation } from '../services/location';
 import { observeMember, resolveTransportMode } from '../services/member';
 import { getRoute, ROUTE_PROFILES, toRouteProfile } from '../services/routeActions';
 import type { RouteProfile, RouteResult } from '../services/routeActions';
@@ -25,51 +27,12 @@ type Props = {
   storeId: string;
 };
 
-const MAP_STYLE_URL = `https://api.maptiler.com/maps/streets-v2/style.json?key=${process.env.EXPO_PUBLIC_MAPTILER_API_KEY ?? ''}`;
-
 //出発地と目的地の両方が入るように表示する
 const CAMERA_PADDING: ViewPadding = { top: 120, right: 40, bottom: 260, left: 40 };
 
 //経路の線
 const ROUTE_LINE_COLOR = '#06c';
 const ROUTE_LINE_WIDTH = 4;
-
-function toLngLat(point: GeoPoint): [number, number] {
-  return [point.longitude, point.latitude];
-}
-
-//現在地を取得する
-async function fetchCurrentLocation(): Promise<GeoPoint | null> {
-  const permission = await Location.requestForegroundPermissionsAsync();
-  if (!permission.granted) {
-    return null;
-  }
-
-  const position = await Location.getCurrentPositionAsync();
-  return {
-    latitude: position.coords.latitude,
-    longitude: position.coords.longitude,
-  };
-}
-
-//距離の表示
-function formatDistance(meters: number): string {
-  if (meters < 1000) {
-    return `${Math.round(meters)}m`;
-  }
-  return `${(meters / 1000).toFixed(1)}km`;
-}
-
-//所要時間の表示
-function formatDuration(seconds: number): string {
-  const minutes = Math.ceil(seconds / 60);
-  if (minutes < 60) {
-    return `${minutes}分`;
-  }
-  const hours = Math.floor(minutes / 60);
-  const rest = String(minutes % 60).padStart(2, '0');
-  return `${hours}時間${rest}分`;
-}
 
 export default function RoutePage({ familyId, uid, storeId }: Props) {
 

@@ -1,5 +1,7 @@
-import { collection, doc, getFirestore, onSnapshot, orderBy, query } from '@react-native-firebase/firestore';
+import { collection, doc, getFirestore, orderBy, query } from '@react-native-firebase/firestore';
 import type { StoreDoc } from '../types/firestore';
+import { observeCollection, observeDoc } from './observe';
+import type { WithId } from './observe';
 //stores の読み取りを行う
 
 const FAMILIES_COLLECTION = 'families';
@@ -7,7 +9,7 @@ const FAMILIES_COLLECTION = 'families';
 const STORES_COLLECTION = 'stores';
 
 //ドキュメントIDを含めた店舗
-export type StoreWithId = { id: string } & StoreDoc;
+export type StoreWithId = WithId<StoreDoc>;
 
 //stores への参照を行う
 function storesCollectionRef(familyId: string) {
@@ -24,19 +26,11 @@ export function observeStores(
   callback: (stores: StoreWithId[]) => void,
   onError?: (error: Error) => void,
 ): () => void {
-  return onSnapshot(
+  return observeCollection<StoreDoc>(
     query(storesCollectionRef(familyId), orderBy('createdTime', 'desc')),
-    snapshot => {
-      const stores = snapshot.docs.map(document => ({
-        id: document.id,
-        ...(document.data() as StoreDoc),
-      }));
-      callback(stores);
-    },
-    error => {
-      console.warn(`observeStores failed: ${familyId}`, error);
-      onError?.(error);
-    },
+    `observeStores failed: ${familyId}`,
+    callback,
+    onError,
   );
 }
 
@@ -47,16 +41,10 @@ export function observeStore(
   callback: (store: StoreWithId | null) => void,
   onError?: (error: Error) => void,
 ): () => void {
-  return onSnapshot(
+  return observeDoc<StoreDoc>(
     storeDocRef(familyId, storeId),
-    snapshot => {
-      callback(
-        snapshot.exists() ? { id: snapshot.id, ...(snapshot.data() as StoreDoc) } : null,
-      );
-    },
-    error => {
-      console.warn(`observeStore failed: ${familyId}/${storeId}`, error);
-      onError?.(error);
-    },
+    `observeStore failed: ${familyId}/${storeId}`,
+    callback,
+    onError,
   );
 }

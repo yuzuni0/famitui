@@ -1,6 +1,6 @@
-import { doc, getFirestore, onSnapshot, serverTimestamp, setDoc } from '@react-native-firebase/firestore';
+import { doc, getFirestore, serverTimestamp, setDoc } from '@react-native-firebase/firestore';
 import type { StandardLabel, StockStandardDoc } from '../types/firestore';
-//
+import { observeDocData } from './observe';
 
 const FAMILIES_COLLECTION = 'families';
 
@@ -39,18 +39,10 @@ export function observeStockStandard(
   callback: (standard: StockStandardDoc | null) => void,
   onError?: (error: Error) => void,
 ): () => void {
-  return onSnapshot(
+  return observeDocData<StockStandardDoc>(
     stockStandardDocRef(familyId),
-    snapshot => {
-      if (!snapshot.exists()) {
-        callback(null);
-        return;
-      }
-      callback(snapshot.data() as StockStandardDoc);
-    },
-    error => {
-      console.warn(`observeStockStandard failed: ${familyId}`, error);
-      onError?.(error);
-    },
+    `observeStockStandard failed: ${familyId}`,
+    callback,
+    onError,
   );
 }

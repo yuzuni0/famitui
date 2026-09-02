@@ -5,7 +5,7 @@ import { ActivityIndicator, Button, Pressable, SectionList, StyleSheet, Text, Vi
 
 import { errorMessage } from '../lib/errors';
 import type { MainStackParamList } from '../navigation/RootNavigator';
-import { isExpired, observeMyAssignments, remainingMillis } from '../services/assignment';
+import { isExpired, observeMyAssignments, remainingLabel } from '../services/assignment';
 import type { AssignmentWithId } from '../services/assignment';
 import { observeItems } from '../services/item';
 import type { ItemWithId } from '../services/item';
@@ -31,16 +31,6 @@ type ItemSection = {
   title: string;
   data: AssignedItem[];
 };
-
-//期限までの残り時間を示す
-function remainingLabel(assignment: AssignmentWithId): string {
-  if (isExpired(assignment)) {
-    return '期限切れ';
-  }
-
-  const minutes = Math.floor(remainingMillis(assignment) / 60000);
-  return minutes < 1 ? 'まもなく期限' : `残り${minutes}分`;
-}
 
 //割り当てに対応する品目をまとまりにする
 function buildAssignedItems(
@@ -232,7 +222,7 @@ export default function PurchaseReportPage({ familyId, uid, initialItemId }: Pro
         contentContainerStyle={styles.list}
         stickySectionHeadersEnabled={false}
         ListEmptyComponent={
-          <Text style={styles.empty}>担当している品目はありません。</Text>
+          <Text style={styles.empty}>はありません。</Text>
         }
         renderSectionHeader={({ section }) => (
           <Text style={styles.sectionHeader}>{section.title}</Text>

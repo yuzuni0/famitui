@@ -1,8 +1,12 @@
 import { useFocusEffect, useIsFocused, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, Button, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View, } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Alert, Animated, Button, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View, useWindowDimensions, } from 'react-native';
+import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import type { NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
 import { errorMessage } from '../lib/errors';
+import { categoryLabel } from '../lib/format';
 import type { MainStackParamList } from '../navigation/RootNavigator';
 import { createItem, deleteItem, isAssigned, isAssignedTo, isRequested, itemStateLabel, updateItem } from '../services/item';
 import type { CreateItemInput, ItemWithId } from '../services/item';
@@ -27,11 +31,9 @@ const NOTE_MAX_LENGTH = 200;
 const ALTERNATIVE_MAX_COUNT = 5;
 const ALTERNATIVE_NAME_MAX_LENGTH = 50;
 const MAX_DISTANCE_METERS = 100000;
-
-//カテゴリの id から表示名を取得する
-function categoryLabel(category: CategoryId): string {
-  return CATEGORIES.find(entry => entry.id === category)?.label ?? category;
-}
+const CLOSE_DISTANCE = 120;
+const CLOSE_VELOCITY = 1000;
+const HANDLE_HEIGHT = 28;
 
 //複数のカテゴリをまとめて表示する
 function storeCategoriesLabel(categories: CategoryId[]): string {
@@ -66,26 +68,23 @@ export default function AddMissingModal({ familyId, uid, item, onClose }: Props)
 
   const [editing, setEditing] = useState<boolean>(item === null);
 
-  const [itemName, setItemName] = useState<string>(() => initialFormState(item).itemName);
-  const [category, setCategory] = useState<CategoryId>(() => initialFormState(item).category);
+  const initial = initialFormState(item);
+  const [itemName, setItemName] = useState<string>(initial.itemName);
+  const [category, setCategory] = useState<CategoryId>(initial.category);
   const [alternativeItemNames, setAlternativeItemNames] = useState<string[]>(
-    () => initialFormState(item).alternativeItemNames,
+    initial.alternativeItemNames,
   );
 
   //新しい代替品を入力する欄の値
   const [alternativeInput, setAlternativeInput] = useState<string>('');
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
 
-  const [maxDistanceText, setMaxDistanceText] = useState<string>(
-    () => initialFormState(item).maxDistanceText,
-  );
-  const [note, setNote] = useState<string>(() => initialFormState(item).note);
-  const [autoNotifyEnabled, setAutoNotifyEnabled] = useState<boolean>(
-    () => initialFormState(item).autoNotifyEnabled,
-  );
+  const [maxDistanceText, setMaxDistanceText] = useState<string>(initial.maxDistanceText);
+  const [note, setNote] = useState<string>(initial.note);
+  const [autoNotifyEnabled, setAutoNotifyEnabled] = useState<boolean>(initial.autoNotifyEnabled);
   //指定中の店舗
   const [preferredStoreId, setPreferredStoreId] = useState<string | null>(
-    () => initialFormState(item).preferredStoreId,
+    initial.preferredStoreId,
   );
   const [pendingStoreName, setPendingStoreName] = useState<string | null>(null);
   const [pendingStoreCategories, setPendingStoreCategories] = useState<CategoryId[] | null>(
@@ -95,6 +94,87 @@ export default function AddMissingModal({ familyId, uid, item, onClose }: Props)
   const [stores, setStores] = useState<StoreWithId[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  const [scrollLocked, setScrollLocked] = useState(false);
+  const [dismissing, setDismissing] = useState(false);
+  const { height: windowHeight } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const translateY = useRef(new Animated.Value(0)).current;
+  const scrollOffsetRef = useRef(0);
+  //指の移動量
+  const dragStartRef = useRef(0);
+  const sheetOffsetRef = useRef(0);
+  const fromHandleRef = useRef(false);
+  const closingRef = useRef(false);
+
+  function handleScroll(event: NativeSyntheticEvent<NativeScrollEvent>) {
+    scrollOffsetRef.current = event.nativeEvent.contentOffset.y;
+  }
+
+  //モーダルを閉じるアニメーション
+  function dismissSheet() {
+    closingRef.current = true;
+    setDismissing(true);
+    Animated.timing(translateY, {
+      toValue: windowHeight,
+      duration: 200,
+      useNativeDriver: true,
+    }).start(() => onClose());
+  }
+
+  //モーダルを元の位置へ戻す
+  function resetSheet() {
+    sheetOffsetRef.current = 0;
+    setScrollLocked(false);
+    Animated.spring(translateY, { toValue: 0, bounciness: 4, useNativeDriver: true }).start();
+  }
+
+  const scrollGesture = Gesture.Native();
+
+  const panGesture = Gesture.Pan()
+    .enabled(!submitting)
+    .activeOffsetY(10)
+    .failOffsetX([-20, 20])
+    .simultaneousWithExternalGesture(scrollGesture)
+    .onBegin(event => {
+      fromHandleRef.current = event.y < HANDLE_HEIGHT;
+      dragStartRef.current = 0;
+      sheetOffsetRef.current = 0;
+    })
+    .onUpdate(event => {
+      if (closingRef.current) {
+        return;
+      }
+
+      //モーダルがまだスクロールできるかの確認
+      const scrolling =
+        !fromHandleRef.current && sheetOffsetRef.current <= 0 && scrollOffsetRef.current > 0;
+      if (scrolling) {
+        dragStartRef.current = event.translationY;
+        return;
+      }
+
+      const offset = Math.max(0, event.translationY - dragStartRef.current);
+      if (offset > 0 && sheetOffsetRef.current <= 0) {
+        setScrollLocked(true);
+      }
+      sheetOffsetRef.current = offset;
+      translateY.setValue(offset);
+    })
+    .onEnd((event, success) => {
+      if (closingRef.current) {
+        return;
+      }
+
+      const offset = sheetOffsetRef.current;
+      const shouldClose =
+        success && (offset > CLOSE_DISTANCE || (offset > 0 && event.velocityY > CLOSE_VELOCITY));
+      if (shouldClose) {
+        dismissSheet();
+      } else {
+        resetSheet();
+      }
+    });
 
   //店舗の一覧を監視する
   useEffect(() => {
@@ -405,233 +485,250 @@ export default function AddMissingModal({ familyId, uid, item, onClose }: Props)
 
   return (
     <Modal visible={isFocused} animationType="slide" transparent onRequestClose={onClose}>
-      <View style={styles.backdrop}>
-        <View style={styles.sheet}>
-          <ScrollView contentContainerStyle={styles.content}>
-            <Text style={styles.title}>{title}</Text>
+      <GestureHandlerRootView style={[styles.backdrop, dismissing && styles.backdropClear]}>
+        <GestureDetector gesture={panGesture}>
+          <Animated.View style={[styles.sheet, { transform: [{ translateY }] }]}>
+            <View style={styles.handleArea}>
+              <View style={styles.handle} />
+            </View>
 
-            {!editing && item !== null ? (
-              <>
-                {!editable && (
-                  <Text style={styles.note}>
-                    {item.status === 'completed'
-                      ? 'この品目は完了しているため、編集できません。'
-                      : '他の人が担当しているため、編集できません。'}
-                  </Text>
-                )}
+            <GestureDetector gesture={scrollGesture}>
+              <ScrollView
+                contentContainerStyle={[styles.content, { paddingBottom: Math.max(insets.bottom, 16) }]}
+                onScroll={handleScroll}
+                scrollEventThrottle={16}
+                scrollEnabled={!scrollLocked}
+                bounces={false}
+                overScrollMode="never"
+              >
+                <Text style={styles.title}>{title}</Text>
 
-                <Text style={styles.label}>商品名</Text>
-                <Text style={styles.value}>{item.itemName}</Text>
-
-                <Text style={styles.label}>カテゴリ</Text>
-                <Text style={styles.value}>{categoryLabel(item.category)}</Text>
-
-                <Text style={styles.label}>状態</Text>
-                <Text style={styles.value}>{itemStateLabel(item)}</Text>
-
-                <Text style={styles.label}>代替品</Text>
-                {item.alternativeItemNames.length === 0 ? (
-                  <Text style={styles.value}>なし</Text>
-                ) : (
-                  item.alternativeItemNames.map((name, index) => (
-                    <Text key={`${index}-${name}`} style={styles.value}>
-                      ・{name}
-                    </Text>
-                  ))
-                )}
-
-                <Text style={styles.label}>距離の上限（メートル）</Text>
-                <Text style={styles.value}>
-                  {item.maxDistanceMeters != null ? String(item.maxDistanceMeters) : '指定なし'}
-                </Text>
-
-                <Text style={styles.label}>購入する店舗</Text>
-                <Text style={styles.value}>{preferredStoreName ?? '指定なし'}</Text>
-                {preferredStoreCategories !== null && (
-                  <Text style={styles.note}>{storeCategoriesLabel(preferredStoreCategories)}</Text>
-                )}
-
-                {item.note !== '' && (
+                {!editing && item !== null ? (
                   <>
+                    {!editable && (
+                      <Text style={styles.note}>
+                        {item.status === 'completed'
+                          ? 'この品目は完了しているため、編集できません。'
+                          : '他の人が担当しているため、編集できません。'}
+                      </Text>
+                    )}
+
+                    <Text style={styles.label}>商品名</Text>
+                    <Text style={styles.value}>{item.itemName}</Text>
+
+                    <Text style={styles.label}>カテゴリ</Text>
+                    <Text style={styles.value}>{categoryLabel(item.category)}</Text>
+
+                    <Text style={styles.label}>状態</Text>
+                    <Text style={styles.value}>{itemStateLabel(item)}</Text>
+
+                    <Text style={styles.label}>代替品</Text>
+                    {item.alternativeItemNames.length === 0 ? (
+                      <Text style={styles.value}>なし</Text>
+                    ) : (
+                      item.alternativeItemNames.map((name, index) => (
+                        <Text key={`${index}-${name}`} style={styles.value}>
+                          ・{name}
+                        </Text>
+                      ))
+                    )}
+
+                    <Text style={styles.label}>距離の上限（メートル）</Text>
+                    <Text style={styles.value}>
+                      {item.maxDistanceMeters != null ? String(item.maxDistanceMeters) : '指定なし'}
+                    </Text>
+
+                    <Text style={styles.label}>購入する店舗</Text>
+                    <Text style={styles.value}>{preferredStoreName ?? '指定なし'}</Text>
+                    {preferredStoreCategories !== null && (
+                      <Text style={styles.note}>{storeCategoriesLabel(preferredStoreCategories)}</Text>
+                    )}
+
+                    {item.note !== '' && (
+                      <>
+                        <Text style={styles.label}>備考</Text>
+                        <Text style={styles.value}>{item.note}</Text>
+                      </>
+                    )}
+
+                    <Text style={styles.label}>自動で通知する</Text>
+                    <Text style={styles.value}>{item.autoNotifyEnabled ? 'する' : 'しない'}</Text>
+                  </>
+                ) : (
+                  <>
+                    <Text style={styles.label}>商品名</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={itemName}
+                      onChangeText={setItemName}
+                      placeholder="商品名"
+                      editable={!submitting}
+                      maxLength={ITEM_NAME_MAX_LENGTH}
+                    />
+
+                    <Text style={styles.label}>カテゴリ</Text>
+                    <View style={styles.categories}>
+                      {CATEGORIES.map(entry => (
+                        <Pressable
+                          key={entry.id}
+                          style={[styles.category, category === entry.id && styles.categorySelected]}
+                          onPress={() => setCategory(entry.id)}
+                          disabled={submitting}
+                        >
+                          <Text style={category === entry.id ? styles.categoryLabelSelected : undefined}>
+                            {entry.label}
+                          </Text>
+                        </Pressable>
+                      ))}
+                    </View>
+
+                    <Text style={styles.label}>代替品</Text>
+                    {alternativeItemNames.map((name, index) => (
+                      <View key={`${index}-${name}`} style={styles.alternativeRow}>
+                        <Pressable
+                          style={[
+                            styles.alternativeName,
+                            editingIndex === index && styles.alternativeNameEditing,
+                          ]}
+                          onPress={() => handleEditAlternative(index)}
+                          disabled={submitting}
+                        >
+                          <Text>{name}</Text>
+                        </Pressable>
+                        <Button
+                          title="削除"
+                          color="#c00"
+                          onPress={() => handleRemoveAlternative(index)}
+                          disabled={submitting}
+                        />
+                      </View>
+                    ))}
+
+                    <TextInput
+                      style={styles.input}
+                      value={alternativeInput}
+                      onChangeText={setAlternativeInput}
+                      placeholder={editingIndex === null ? '代替品を入力する' : '代替品を書き換える'}
+                      editable={!submitting}
+                      maxLength={ALTERNATIVE_NAME_MAX_LENGTH}
+                    />
+                    <View style={styles.alternativeButtons}>
+                      <Button
+                        title={editingIndex === null ? '追加する' : '更新する'}
+                        onPress={handleSubmitAlternative}
+                        disabled={submitting}
+                      />
+                      {editingIndex !== null && (
+                        <Button
+                          title="編集をやめる"
+                          onPress={handleCancelAlternative}
+                          disabled={submitting}
+                        />
+                      )}
+                    </View>
+                    <Text style={styles.note}>
+                      {ALTERNATIVE_MAX_COUNT}件まで登録できます。タップすると編集できます。
+                    </Text>
+
+                    <Text style={styles.label}>距離の上限（メートル）</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={maxDistanceText}
+                      onChangeText={setMaxDistanceText}
+                      placeholder="指定しない場合は空欄"
+                      keyboardType="number-pad"
+                      editable={!submitting}
+                    />
+
                     <Text style={styles.label}>備考</Text>
-                    <Text style={styles.value}>{item.note}</Text>
+                    <TextInput
+                      style={[styles.input, styles.multiline]}
+                      value={note}
+                      onChangeText={setNote}
+                      placeholder="備考"
+                      multiline
+                      editable={!submitting}
+                      maxLength={NOTE_MAX_LENGTH}
+                    />
+
+                    <View style={styles.switchRow}>
+                      <Text style={styles.label}>自動で通知する</Text>
+                      <Switch
+                        value={autoNotifyEnabled}
+                        onValueChange={setAutoNotifyEnabled}
+                        disabled={submitting}
+                      />
+                    </View>
+
+                    <Text style={styles.label}>購入する店舗</Text>
+                    <Text style={styles.value}>{preferredStoreName ?? '指定なし'}</Text>
+                    {preferredStoreCategories !== null && (
+                      <Text style={styles.note}>{storeCategoriesLabel(preferredStoreCategories)}</Text>
+                    )}
+                    <View style={styles.alternativeButtons}>
+                      <Button title="店舗を指定する" onPress={handleSelectStore} disabled={submitting} />
+                      {preferredStoreId !== null && (
+                        <Button title="指定を解除する" onPress={handleClearStore} disabled={submitting} />
+                      )}
+                    </View>
                   </>
                 )}
 
-                <Text style={styles.label}>自動で通知する</Text>
-                <Text style={styles.value}>{item.autoNotifyEnabled ? 'する' : 'しない'}</Text>
-              </>
-            ) : (
-              <>
-                <Text style={styles.label}>商品名</Text>
-                <TextInput
-                  style={styles.input}
-                  value={itemName}
-                  onChangeText={setItemName}
-                  placeholder="商品名"
-                  editable={!submitting}
-                  maxLength={ITEM_NAME_MAX_LENGTH}
-                />
-
-                <Text style={styles.label}>カテゴリ</Text>
-                <View style={styles.categories}>
-                  {CATEGORIES.map(entry => (
-                    <Pressable
-                      key={entry.id}
-                      style={[styles.category, category === entry.id && styles.categorySelected]}
-                      onPress={() => setCategory(entry.id)}
-                      disabled={submitting}
-                    >
-                      <Text style={category === entry.id ? styles.categoryLabelSelected : undefined}>
-                        {entry.label}
-                      </Text>
-                    </Pressable>
-                  ))}
-                </View>
-
-                <Text style={styles.label}>代替品</Text>
-                {alternativeItemNames.map((name, index) => (
-                  <View key={`${index}-${name}`} style={styles.alternativeRow}>
-                    <Pressable
-                      style={[
-                        styles.alternativeName,
-                        editingIndex === index && styles.alternativeNameEditing,
-                      ]}
-                      onPress={() => handleEditAlternative(index)}
-                      disabled={submitting}
-                    >
-                      <Text>{name}</Text>
-                    </Pressable>
-                    <Button
-                      title="削除"
-                      color="#c00"
-                      onPress={() => handleRemoveAlternative(index)}
-                      disabled={submitting}
-                    />
+                {error !== null && (
+                  <View style={styles.errorBanner}>
+                    <Text style={styles.errorText}>{error}</Text>
                   </View>
-                ))}
+                )}
 
-                <TextInput
-                  style={styles.input}
-                  value={alternativeInput}
-                  onChangeText={setAlternativeInput}
-                  placeholder={editingIndex === null ? '代替品を入力する' : '代替品を書き換える'}
-                  editable={!submitting}
-                  maxLength={ALTERNATIVE_NAME_MAX_LENGTH}
-                />
-                <View style={styles.alternativeButtons}>
-                  <Button
-                    title={editingIndex === null ? '追加する' : '更新する'}
-                    onPress={handleSubmitAlternative}
-                    disabled={submitting}
-                  />
-                  {editingIndex !== null && (
+                {editing ? (
+                  <>
                     <Button
-                      title="編集をやめる"
-                      onPress={handleCancelAlternative}
+                      title={item === null ? '追加する' : '保存する'}
+                      onPress={handleSave}
                       disabled={submitting}
                     />
-                  )}
-                </View>
-                <Text style={styles.note}>
-                  {ALTERNATIVE_MAX_COUNT}件まで登録できます。タップすると編集できます。
-                </Text>
-
-                <Text style={styles.label}>距離の上限（メートル）</Text>
-                <TextInput
-                  style={styles.input}
-                  value={maxDistanceText}
-                  onChangeText={setMaxDistanceText}
-                  placeholder="指定しない場合は空欄"
-                  keyboardType="number-pad"
-                  editable={!submitting}
-                />
-
-                <Text style={styles.label}>備考</Text>
-                <TextInput
-                  style={[styles.input, styles.multiline]}
-                  value={note}
-                  onChangeText={setNote}
-                  placeholder="備考"
-                  multiline
-                  editable={!submitting}
-                  maxLength={NOTE_MAX_LENGTH}
-                />
-
-                <View style={styles.switchRow}>
-                  <Text style={styles.label}>自動で通知する</Text>
-                  <Switch
-                    value={autoNotifyEnabled}
-                    onValueChange={setAutoNotifyEnabled}
-                    disabled={submitting}
-                  />
-                </View>
-
-                <Text style={styles.label}>購入する店舗</Text>
-                <Text style={styles.value}>{preferredStoreName ?? '指定なし'}</Text>
-                {preferredStoreCategories !== null && (
-                  <Text style={styles.note}>{storeCategoriesLabel(preferredStoreCategories)}</Text>
+                    {item !== null && (
+                      <Button
+                        title="キャンセルする"
+                        onPress={handleCancelEditing}
+                        disabled={submitting}
+                      />
+                    )}
+                  </>
+                ) : (
+                  <>
+                    {acceptable && (
+                      <Button
+                        title="依頼を受け付ける"
+                        onPress={handleAccept}
+                        disabled={submitting}
+                      />
+                    )}
+                    {switchable && (
+                      <Button
+                        title={isRequested(item) ? '依頼を取り下げる' : '依頼する'}
+                        onPress={handleSwitchStatus}
+                        disabled={submitting}
+                      />
+                    )}
+                    {editable && (
+                      <Button title="編集する" onPress={() => setEditing(true)} disabled={submitting} />
+                    )}
+                    {deletable && (
+                      <Button
+                        title="削除する"
+                        color="#c00"
+                        onPress={confirmDelete}
+                        disabled={submitting}
+                      />
+                    )}
+                  </>
                 )}
-                <View style={styles.alternativeButtons}>
-                  <Button title="店舗を指定する" onPress={handleSelectStore} disabled={submitting} />
-                  {preferredStoreId !== null && (
-                    <Button title="指定を解除する" onPress={handleClearStore} disabled={submitting} />
-                  )}
-                </View>
-              </>
-            )}
-
-            {error !== null && <Text style={styles.error}>{error}</Text>}
-
-            {editing ? (
-              <>
-                <Button
-                  title={item === null ? '追加する' : '保存する'}
-                  onPress={handleSave}
-                  disabled={submitting}
-                />
-                {item !== null && (
-                  <Button
-                    title="キャンセルする"
-                    onPress={handleCancelEditing}
-                    disabled={submitting}
-                  />
-                )}
-              </>
-            ) : (
-              <>
-                {acceptable && (
-                  <Button
-                    title="依頼を受け付ける"
-                    onPress={handleAccept}
-                    disabled={submitting}
-                  />
-                )}
-                {switchable && (
-                  <Button
-                    title={isRequested(item) ? '依頼を取り下げる' : '依頼する'}
-                    onPress={handleSwitchStatus}
-                    disabled={submitting}
-                  />
-                )}
-                {editable && (
-                  <Button title="編集する" onPress={() => setEditing(true)} disabled={submitting} />
-                )}
-                {deletable && (
-                  <Button
-                    title="削除する"
-                    color="#c00"
-                    onPress={confirmDelete}
-                    disabled={submitting}
-                  />
-                )}
-              </>
-            )}
-
-            <Button title="閉じる" onPress={onClose} disabled={submitting} />
-          </ScrollView>
-        </View>
-      </View>
+              </ScrollView>
+            </GestureDetector>
+          </Animated.View>
+        </GestureDetector>
+      </GestureHandlerRootView>
     </Modal>
   );
 }
@@ -642,14 +739,28 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     backgroundColor: '#0006',
   },
+  backdropClear: {
+    backgroundColor: 'transparent',
+  },
   sheet: {
     maxHeight: '90%',
-    borderTopLeftRadius: 12,
-    borderTopRightRadius: 12,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
     backgroundColor: '#fff',
   },
+  handleArea: {
+    height: HANDLE_HEIGHT,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  handle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#ccc',
+  },
   content: {
-    padding: 24,
+    paddingHorizontal: 16,
     gap: 12,
   },
   title: {
@@ -665,8 +776,8 @@ const styles = StyleSheet.create({
   },
   input: {
     borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 4,
+    borderColor: '#d1d5db',
+    borderRadius: 8,
     padding: 12,
   },
   multiline: {
@@ -680,8 +791,8 @@ const styles = StyleSheet.create({
   },
   category: {
     borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 4,
+    borderColor: '#d1d5db',
+    borderRadius: 8,
     paddingVertical: 8,
     paddingHorizontal: 12,
   },
@@ -700,8 +811,8 @@ const styles = StyleSheet.create({
   alternativeName: {
     flex: 1,
     borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 4,
+    borderColor: '#d1d5db',
+    borderRadius: 8,
     padding: 12,
   },
   alternativeNameEditing: {
@@ -720,8 +831,17 @@ const styles = StyleSheet.create({
   note: {
     color: '#666',
   },
-  error: {
-    textAlign: 'center',
-    color: '#c00',
+  errorBanner: {
+    backgroundColor: '#fdecec',
+    borderLeftWidth: 4,
+    borderLeftColor: '#c00',
+    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+  },
+  errorText: {
+    color: '#b42318',
+    fontSize: 14,
+    lineHeight: 20,
   },
 });

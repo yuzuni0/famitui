@@ -4,34 +4,18 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Button, FlatList, StyleSheet, Text, View } from 'react-native';
 
 import { errorMessage } from '../lib/errors';
+import { formatDateTime, transportModeLabel } from '../lib/format';
 import type { MainStackParamList } from '../navigation/RootNavigator';
 import { observeFamilyDoc } from '../services/family';
 import { isBusy, observeMembers, resolveTransportMode } from '../services/member';
 import type { MemberWithId } from '../services/member';
-import { TRANSPORT_MODES } from '../types/firestore';
-import type { FamilyDoc, TransportMode } from '../types/firestore';
+import type { FamilyDoc } from '../types/firestore';
 
 //家族全員の移動手段と拘束状況を確認する画面
 type Props = {
   familyId: string;
   uid: string;
 };
-
-type MemberTimestamp = NonNullable<MemberWithId['busyUntilTime']>;
-
-function transportModeLabel(mode: TransportMode): string {
-  return TRANSPORT_MODES.find(entry => entry.id === mode)?.label ?? mode;
-}
-
-//日をまたぐ場合があるため月日も表示する
-function formatDateTime(value: MemberTimestamp): string {
-  const date = value.toDate();
-  const month = date.getMonth() + 1;
-  const day = date.getDate();
-  const hours = String(date.getHours()).padStart(2, '0');
-  const minutes = String(date.getMinutes()).padStart(2, '0');
-  return `${month}/${day} ${hours}:${minutes}`;
-}
 
 //拘束の内容と終了時刻を表示する
 function busyLabel(member: MemberWithId): string {

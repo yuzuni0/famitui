@@ -2,7 +2,10 @@ import { onCall, HttpsError } from "firebase-functions/https";
 import { defineSecret } from "firebase-functions/params";
 import { logger } from "firebase-functions/v2";
 import { getFirestore } from "firebase-admin/firestore";
-import { GeoPoint, isGeoPoint } from "../lib/geo";
+import { GeoPoint } from "../lib/geo";
+import {
+  requireAuth, requireGeoPoint, requireMembership, requireString,
+} from "../lib/request";
 
 const openRouteServiceApiKey = defineSecret("OPENROUTESERVICE_API_KEY");
 
@@ -58,7 +61,6 @@ function parseRoute(body: unknown): Route | null {
     if (typeof longitude !== "number" || typeof latitude !== "number") {
       return null;
     }
-    // 緯度・経度の範囲を確認する
     coordinates.push({ latitude, longitude });
   }
 
@@ -80,34 +82,13 @@ function parseRoute(body: unknown): Route | null {
 export const getRoute = onCall(
   { secrets: [openRouteServiceApiKey] },
   async (request) => {
-    if (!request.auth) {
-      throw new HttpsError("unauthenticated", "ログインが必要です。");
-    }
-    const uid = request.auth.uid;
-
-    const familyId = request.data?.familyId;
-    if (typeof familyId !== "string") {
-      throw new HttpsError(
-        "invalid-argument",
-        "familyId は文字列で指定してください。"
-      );
-    }
-
-    const origin = request.data?.origin;
-    if (!isGeoPoint(origin)) {
-      throw new HttpsError(
-        "invalid-argument",
-        "origin は有効な座標で指定してください。"
-      );
-    }
-
-    const destination = request.data?.destination;
-    if (!isGeoPoint(destination)) {
-      throw new HttpsError(
-        "invalid-argument",
-        "destination は有効な座標で指定してください。"
-      );
-    }
+    const uid = requireAuth(request);
+    const familyId = requireString(request.data?.familyId, "familyId");
+    const origin = requireGeoPoint(request.data?.origin, "origin");
+    const destination = requireGeoPoint(
+      request.data?.destination,
+      "destination"
+    );
 
     const profile = request.data?.profile;
     if (!isProfile(profile)) {
@@ -117,20 +98,7 @@ export const getRoute = onCall(
       );
     }
 
-    // 家族グループの所属を確認する
-    const db = getFirestore();
-    const memberSnapshot = await db
-      .collection("families")
-      .doc(familyId)
-      .collection("members")
-      .doc(uid)
-      .get();
-    if (!memberSnapshot.exists) {
-      throw new HttpsError(
-        "permission-denied",
-        "この家族グループに所属していません。"
-      );
-    }
+    await requireMembership(getFirestore(), familyId, uid);
 
     const response = await fetch(`${ORS_BASE_URL}/${profile}/geojson`, {
       method: "POST",

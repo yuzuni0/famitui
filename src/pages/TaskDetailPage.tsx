@@ -2,10 +2,12 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Button, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { errorMessage } from '../lib/errors';
+import { categoryLabel } from '../lib/format';
 import type { MainStackParamList } from '../navigation/RootNavigator';
-import { isExpired, observeAssignment, remainingMillis } from '../services/assignment';
+import { isExpired, observeAssignment, remainingLabel } from '../services/assignment';
 import type { AssignmentWithId } from '../services/assignment';
 import { observeItems } from '../services/item';
 import type { ItemWithId } from '../services/item';
@@ -14,8 +16,6 @@ import { observeMembers } from '../services/member';
 import type { MemberWithId } from '../services/member';
 import { observeStores } from '../services/store';
 import type { StoreWithId } from '../services/store';
-import { CATEGORIES } from '../types/firestore';
-import type { CategoryId } from '../types/firestore';
 
 //担当している不足品の詳細を表示し、ナビとかに遷移するための画面
 type Props = {
@@ -24,23 +24,10 @@ type Props = {
   itemId: string;
 };
 
-function categoryLabel(category: CategoryId): string {
-  return CATEGORIES.find(entry => entry.id === category)?.label ?? category;
-}
-
-//担当の期限を表示する
-function remainingLabel(assignment: AssignmentWithId): string {
-  if (isExpired(assignment)) {
-    return '期限切れ';
-  }
-
-  const minutes = Math.floor(remainingMillis(assignment) / 60000);
-  return minutes < 1 ? 'まもなく期限' : `残り${minutes}分`;
-}
-
 export default function TaskDetailPage({ familyId, uid, itemId }: Props) {
 
   const navigation = useNavigation<NativeStackNavigationProp<MainStackParamList>>();
+  const insets = useSafeAreaInsets();
 
   const [items, setItems] = useState<ItemWithId[] | null>(null);
   const [members, setMembers] = useState<MemberWithId[] | null>(null);
@@ -186,8 +173,13 @@ export default function TaskDetailPage({ familyId, uid, itemId }: Props) {
   if (items === null || members === null || !assignmentLoaded) {
     return (
       <View style={styles.loading}>
-        <ActivityIndicator size="large" />
-        {error !== null && <Text style={styles.error}>{error}</Text>}
+        <ActivityIndicator size="large" color="#06c" />
+        <Text style={styles.loadingText}>担当の詳細を読み込んでいます…</Text>
+        {error !== null && (
+          <View style={[styles.errorBanner, styles.loadingBanner]}>
+            <Text style={styles.errorText}>{error}</Text>
+          </View>
+        )}
       </View>
     );
   }
@@ -196,12 +188,20 @@ export default function TaskDetailPage({ familyId, uid, itemId }: Props) {
   if (item === null || assignment === null) {
     return (
       <View style={styles.container}>
-        <Text style={styles.error}>
-          {item === null
-            ? 'この品目は見つかりませんでした。削除された可能性があります。'
-            : 'この品目の担当は見つかりませんでした。'}
-        </Text>
-        <Button title="閉じる" onPress={() => navigation.goBack()} />
+        <View style={styles.empty}>
+          <View style={styles.emptyIconCircle}>
+            <Text style={styles.emptyIcon}>❓</Text>
+          </View>
+          <Text style={styles.emptyTitle}>
+            {item === null ? '品目が見つかりません' : '担当が見つかりません'}
+          </Text>
+          <Text style={styles.emptyDescription}>
+            {item === null
+              ? 'この品目は削除された可能性があります。'
+              : 'この品目の担当はすでに解除されています。'}
+          </Text>
+          <Button title="閉じる" onPress={() => navigation.goBack()} />
+        </View>
       </View>
     );
   }
@@ -214,13 +214,23 @@ export default function TaskDetailPage({ familyId, uid, itemId }: Props) {
 
   return (
     <View style={styles.container}>
-      {error !== null && <Text style={styles.error}>{error}</Text>}
-
-      {!active && (
-        <Text style={styles.error}>この品目の担当ではなくなりました。</Text>
+      {(error !== null || !active) && (
+        <View style={styles.banners}>
+          {error !== null && (
+            <View style={styles.errorBanner}>
+              <Text style={styles.errorText}>{error}</Text>
+            </View>
+          )}
+          {!active && (
+            <View style={styles.warningBanner}>
+              <Text style={styles.warningText}>この品目の担当ではなくなりました。</Text>
+            </View>
+          )}
+        </View>
       )}
 
       <ScrollView contentContainerStyle={styles.content}>
+        <View style={styles.card}>
         <Text style={styles.label}>商品名</Text>
         <Text style={styles.itemName}>{item.itemName}</Text>
 
@@ -260,8 +270,10 @@ export default function TaskDetailPage({ familyId, uid, itemId }: Props) {
         <Text style={isExpired(assignment) ? styles.expired : styles.value}>
           {remainingLabel(assignment)}
         </Text>
+        </View>
       </ScrollView>
 
+      <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 16) }]}>
       {preferredStoreId !== null && (
         <Button
           title="ナビゲーション"
@@ -286,6 +298,7 @@ export default function TaskDetailPage({ familyId, uid, itemId }: Props) {
         </>
       )}
       <Button title="閉じる" onPress={() => navigation.goBack()} disabled={submitting} />
+      </View>
     </View>
   );
 }
@@ -296,33 +309,116 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 12,
+    padding: 24,
+    backgroundColor: '#f4f6f8',
+  },
+  loadingText: {
+    color: '#6b7280',
+  },
+  loadingBanner: {
+    alignSelf: 'stretch',
   },
   container: {
     flex: 1,
-    padding: 24,
-    gap: 12,
+    backgroundColor: '#f4f6f8',
+  },
+  banners: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    gap: 8,
+  },
+  errorBanner: {
+    backgroundColor: '#fdecec',
+    borderLeftWidth: 4,
+    borderLeftColor: '#c00',
+    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+  },
+  errorText: {
+    color: '#b42318',
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  warningBanner: {
+    backgroundColor: '#fff7e6',
+    borderLeftWidth: 4,
+    borderLeftColor: '#d97706',
+    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+  },
+  warningText: {
+    color: '#92400e',
+    fontSize: 14,
+    lineHeight: 20,
   },
   content: {
-    gap: 4,
-    paddingBottom: 12,
+    padding: 16,
+  },
+  card: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingTop: 4,
+    paddingBottom: 16,
+    shadowColor: '#000',
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
   },
   label: {
-    marginTop: 8,
-    color: '#666',
+    marginTop: 12,
+    color: '#6b7280',
   },
   itemName: {
     fontSize: 16,
     fontWeight: 'bold',
+    color: '#111827',
   },
   value: {
     fontSize: 16,
+    color: '#111827',
   },
   expired: {
     fontSize: 16,
     color: '#c00',
   },
-  error: {
+  empty: {
+    alignItems: 'center',
+    paddingVertical: 48,
+    paddingHorizontal: 24,
+    gap: 12,
+  },
+  emptyIconCircle: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#e8eef5',
+  },
+  emptyIcon: {
+    fontSize: 32,
+  },
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#111827',
     textAlign: 'center',
-    color: '#c00',
+  },
+  emptyDescription: {
+    color: '#6b7280',
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  footer: {
+    backgroundColor: '#fff',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#e5e7eb',
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    gap: 4,
   },
 });

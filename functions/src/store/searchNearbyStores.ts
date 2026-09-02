@@ -1,22 +1,20 @@
 import { onCall, HttpsError } from "firebase-functions/https";
-import { defineSecret } from "firebase-functions/params";
 import { logger } from "firebase-functions/v2";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import {
-  CategoryId, categoryListForPrompt, isCategoryId,
+  CategoryId, categoryListForPrompt, toCategoryIds,
 } from "../lib/categories";
 import { GeoPoint, distanceMeters, isGeoPoint } from "../lib/geo";
-
-const openaiApiKey = defineSecret("OPENAI_API_KEY");
+import { openaiApiKey, requestClassification } from "../lib/openai";
+import {
+  isNonEmptyString, isStringArray, requireAuth,
+  requireGeoPoint, requireMembership, requireString,
+} from "../lib/request";
 
 // ジオフェンスの登録上限
 const MAX_STORES = 80;
 
 const SOURCE_ID_PREFIX = "osm.n";
-
-const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
-
-const MODEL = "gpt-4o";
 
 // 使うトークン
 const MAX_TOKENS = 2000;
@@ -38,15 +36,6 @@ type StoreResult = {
   categories: CategoryId[];
 };
 
-function isNonEmptyString(value: unknown): value is string {
-  return typeof value === "string" && value.length > 0;
-}
-
-function isStringArray(value: unknown): value is string[] {
-  return Array.isArray(value) &&
-    value.every((entry) => typeof entry === "string");
-}
-
 // 取得した店舗の情報を Candidate に変換する
 function toCandidate(raw: unknown, center: GeoPoint): Candidate | null {
   const entry = raw as {
@@ -55,19 +44,16 @@ function toCandidate(raw: unknown, center: GeoPoint): Candidate | null {
     location?: unknown;
     osmCategories?: unknown;
   };
-  const sourceId = entry?.sourceId;
+  const { sourceId, storeName, location, osmCategories } = entry ?? {};
   if (!isNonEmptyString(sourceId) || !sourceId.startsWith(SOURCE_ID_PREFIX)) {
     return null;
   }
-  const storeName = entry?.storeName;
   if (!isNonEmptyString(storeName)) {
     return null;
   }
-  const location = entry?.location;
   if (!isGeoPoint(location)) {
     return null;
   }
-  const osmCategories = entry?.osmCategories;
   if (!isStringArray(osmCategories)) {
     return null;
   }
@@ -144,13 +130,7 @@ function parseBatchCategories(
     if (!Array.isArray(entry.categories)) {
       continue;
     }
-    const categories: CategoryId[] = [];
-    for (const category of entry.categories) {
-      if (isCategoryId(category) && !categories.includes(category)) {
-        categories.push(category);
-      }
-    }
-    result[index] = categories;
+    result[index] = toCategoryIds(entry.categories);
   }
   return result;
 }
@@ -164,48 +144,12 @@ async function classifyCategoriesBatch(
     return fallback;
   }
 
-  let response: Response;
-  try {
-    response = await fetch(OPENAI_URL, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${openaiApiKey.value()}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        max_tokens: MAX_TOKENS,
-        response_format: { type: "json_object" },
-        messages: [
-          { role: "user", content: buildPrompt(candidates) },
-        ],
-      }),
-    });
-  } catch (fetchError) {
-    logger.error("カテゴリの判定を呼び出せません", {
-      count: candidates.length,
-      fetchError,
-    });
-    return fallback;
-  }
-
-  if (!response.ok) {
-    logger.error("カテゴリの判定に失敗しました", {
-      count: candidates.length,
-      status: response.status,
-      body: await response.text(),
-    });
-    return fallback;
-  }
-
-  const data = await response.json() as {
-    choices?: { message?: { content?: string } }[];
-  };
-  const content = data.choices?.[0]?.message?.content;
-  if (typeof content !== "string") {
-    logger.error("カテゴリの判定の結果を受け取れませんでした", {
-      count: candidates.length,
-    });
+  const content = await requestClassification(
+    buildPrompt(candidates),
+    MAX_TOKENS,
+    { count: candidates.length }
+  );
+  if (content === null) {
     return fallback;
   }
 
@@ -225,27 +169,11 @@ async function classifyCategoriesBatch(
 export const searchNearbyStores = onCall(
   { secrets: [openaiApiKey], timeoutSeconds: 120 },
   async (request) => {
-    if (!request.auth) {
-      throw new HttpsError("unauthenticated", "ログインが必要です。");
-    }
-    const uid = request.auth.uid;
+    const uid = requireAuth(request);
+    const familyId = requireString(request.data?.familyId, "familyId");
 
-    const familyId = request.data?.familyId;
-    if (typeof familyId !== "string") {
-      throw new HttpsError(
-        "invalid-argument",
-        "familyId は文字列で指定してください。"
-      );
-    }
-
-    // 距離順の並べ替え
-    const center = request.data?.center;
-    if (!isGeoPoint(center)) {
-      throw new HttpsError(
-        "invalid-argument",
-        "center は有効な座標で指定してください。"
-      );
-    }
+    // 距離順の並べ替えの基準
+    const center = requireGeoPoint(request.data?.center, "center");
 
     const rawCandidates = request.data?.candidates;
     if (!Array.isArray(rawCandidates)) {
@@ -262,17 +190,9 @@ export const searchNearbyStores = onCall(
     }
 
     const db = getFirestore();
-    const familyRef = db.collection("families").doc(familyId);
+    const familyRef = await requireMembership(db, familyId, uid);
 
-    const memberSnapshot = await familyRef.collection("members").doc(uid).get();
-    if (!memberSnapshot.exists) {
-      throw new HttpsError(
-        "permission-denied",
-        "この家族グループに所属していません。"
-      );
-    }
-
-    // 各ログに経過時間をる
+    // 各ログに経過時間を載せる
     const startedAt = Date.now();
     const elapsedMs = () => Date.now() - startedAt;
 
@@ -303,7 +223,7 @@ export const searchNearbyStores = onCall(
         const saved = snapshot.data()?.categories;
         categoriesById.set(
           candidate.sourceId,
-          Array.isArray(saved) ? saved.filter(isCategoryId) : []
+          Array.isArray(saved) ? toCategoryIds(saved) : []
         );
       } else {
         unknown.push(candidate);

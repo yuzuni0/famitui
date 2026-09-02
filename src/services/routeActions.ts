@@ -1,11 +1,7 @@
-import { getApp } from '@react-native-firebase/app';
-import { getFunctions, httpsCallable } from '@react-native-firebase/functions';
+import type { GeoPoint, TransportMode } from '../types/firestore';
+import { callFunction } from './functionsClient';
 
-import type { GeoPoint, TransportMode } from '../types/firestore'
-
-const REGION = 'asia-northeast1';
-
-const GET_ROUTE = 'getRoute';
+//経路を取得する Functions を呼び出す
 
 //移動手段
 export type RouteProfile = 'foot-walking' | 'cycling-regular' | 'driving-car';
@@ -17,24 +13,12 @@ export const ROUTE_PROFILES: { id: RouteProfile; label: string }[] = [
   { id: 'driving-car', label: '車' },
 ];
 
-//経路取得のリクエスト
-type GetRouteRequest = {
-  familyId: string;
-  origin: GeoPoint;
-  destination: GeoPoint;
-  profile: RouteProfile;
-};
-
 export type RouteResult = {
   //経路の座標列
   coordinates: GeoPoint[];
   distanceMeters: number;
   durationSeconds: number;
 };
-
-function routeFunctions() {
-  return getFunctions(getApp(), REGION);
-}
 
 export function toRouteProfile(mode: TransportMode): RouteProfile {
   switch (mode) {
@@ -55,7 +39,8 @@ export async function getRoute(
   destination: GeoPoint,
   profile: RouteProfile,
 ): Promise<RouteResult> {
-  const callable = httpsCallable<GetRouteRequest, RouteResult>(routeFunctions(), GET_ROUTE);
-  const response = await callable({ familyId, origin, destination, profile });
-  return response.data;
+  return callFunction<
+    { familyId: string; origin: GeoPoint; destination: GeoPoint; profile: RouteProfile },
+    RouteResult
+  >('getRoute', { familyId, origin, destination, profile });
 }

@@ -5,12 +5,16 @@ import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Button, Pressable, ScrollView, StyleSheet, Text, TextInput, View, } from 'react-native';
 
 import { errorMessage } from '../lib/errors';
+import { formatDateTime, transportModeLabel } from '../lib/format';
 import type { MainStackParamList } from '../navigation/RootNavigator';
 import { initBackgroundLocation, startBackgroundLocation, stopBackgroundLocation, } from '../services/backgroundLocation';
+import { handleStoreEntered, startGeofenceMonitor } from '../services/geofenceMonitor';
 import { busyUntilTimeFromNow, isBusy, observeMember, resolveTransportMode, transportModeExpireTime, updateMemberStatus, } from '../services/member';
 import type { MemberWithId } from '../services/member';
 import { fetchNearbyCandidates } from '../services/overpass';
 import { searchNearbyStores } from '../services/storeActions';
+import { observeStores } from '../services/store';
+import type { StoreWithId } from '../services/store';
 import { TRANSPORT_MODES } from '../types/firestore';
 import type { TransportMode } from '../types/firestore';
 
@@ -30,27 +34,12 @@ const BUSY_DURATIONS = [
   { label: '3時間', durationMs: 3 * 60 * 60 * 1000 },
 ];
 
-type MemberTimestamp = NonNullable<MemberWithId['busyUntilTime']>;
-
-function transportModeLabel(mode: TransportMode): string {
-  return TRANSPORT_MODES.find(entry => entry.id === mode)?.label ?? mode;
-}
-
-//日をまたぐ場合があるため月日も表示する
-function formatDateTime(value: MemberTimestamp): string {
-  const date = value.toDate();
-  const month = date.getMonth() + 1;
-  const day = date.getDate();
-  const hours = String(date.getHours()).padStart(2, '0');
-  const minutes = String(date.getMinutes()).padStart(2, '0');
-  return `${month}/${day} ${hours}:${minutes}`;
-}
-
 export default function MyStatusPage({ familyId, uid }: Props) {
 
   const navigation = useNavigation<NativeStackNavigationProp<MainStackParamList>>();
 
   const [member, setMember] = useState<MemberWithId | null>(null);
+  const [stores, setStores] = useState<StoreWithId[] | null>(null);
   const [memberLoaded, setMemberLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -60,6 +49,17 @@ export default function MyStatusPage({ familyId, uid }: Props) {
   const [busyLabelInput, setBusyLabelInput] = useState('');
   const [busyDurationMs, setBusyDurationMs] = useState(BUSY_DURATIONS[1].durationMs);
   const busyLabelInitialized = useRef(false);
+
+  //ジオフェンス監視の解除（テスト用）
+  const stopGeofenceMonitorRef = useRef<(() => void) | null>(null);
+
+  //画面を離れた時にジオフェンス監視を解除する
+  useEffect(() => {
+    return () => {
+      stopGeofenceMonitorRef.current?.();
+      stopGeofenceMonitorRef.current = null;
+    };
+  }, []);
 
   //自分のメンバー情報を監視する
   useEffect(() => {
@@ -83,6 +83,21 @@ export default function MyStatusPage({ familyId, uid }: Props) {
 
     return unsubscribe;
   }, [familyId, uid]);
+
+  // テストにで使う監視
+  useEffect(() => {
+    setStores(null);
+
+    const unsubscribe = observeStores(
+      familyId,
+      setStores,
+      observeError => {
+        setError(errorMessage(observeError));
+      },
+    );
+
+    return unsubscribe;
+  }, [familyId]);
 
   //読み込めた時点の状況を反映する
   useEffect(() => {
@@ -175,6 +190,10 @@ export default function MyStatusPage({ familyId, uid }: Props) {
     try {
       await initBackgroundLocation();
       await startBackgroundLocation();
+
+      //移動の検知から通知まで監視する(テスト)
+      stopGeofenceMonitorRef.current?.();
+      stopGeofenceMonitorRef.current = startGeofenceMonitor(familyId, uid);
     } catch (locationError) {
       setError(errorMessage(locationError));
     }
@@ -183,9 +202,34 @@ export default function MyStatusPage({ familyId, uid }: Props) {
   //位置情報の取得を停止する
   async function handleStopLocation() {
     try {
+      //ジオフェンスの監視を停止したら、位置情報の取得も停止する
+      stopGeofenceMonitorRef.current?.();
+      stopGeofenceMonitorRef.current = null;
+
       await stopBackgroundLocation();
     } catch (locationError) {
       setError(errorMessage(locationError));
+    }
+  }
+
+  //foodを扱う店舗への進入を模擬する
+  async function handleSimulateEnter() {
+    const store = stores?.find(entry => entry.categories.includes('food'));
+    if (store === undefined) {
+      setError('food を扱う店舗が stores にありません');
+      return;
+    }
+
+    setError(null);
+    try {
+      await handleStoreEntered(familyId, uid, {
+        storeId: store.id,
+        storeName: store.storeName,
+        location: store.location,
+        categories: store.categories,
+      });
+    } catch (simulateError) {
+      setError(errorMessage(simulateError));
     }
   }
 
@@ -362,6 +406,7 @@ export default function MyStatusPage({ familyId, uid }: Props) {
         />
         <Button title="位置監視を開始する（テスト）" onPress={handleStartLocation} />
         <Button title="位置監視を停止する（テスト）" onPress={handleStopLocation} />
+        <Button title="店舗進入を模擬する（テスト）" onPress={handleSimulateEnter} />
         <Button
           title={searchingStores ? '周辺の店舗を検索中…' : '周辺の店舗を検索する（テスト）'}
           onPress={handleSearchNearbyStores}

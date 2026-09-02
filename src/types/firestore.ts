@@ -1,7 +1,5 @@
 import type { Timestamp } from '@react-native-firebase/firestore';
 
-//列挙型
-
 //メンバーの移動手段
 export type TransportMode = 'none' | 'walk' | 'bike' | 'vehicle';
 

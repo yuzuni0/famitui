@@ -18,11 +18,13 @@
     "expo-dev-client": "~57.0.9",
     "expo-image-picker": "~57.0.12",
     "expo-location": "~57.0.13",
+    "expo-notifications": "~57.0.15",
     "expo-status-bar": "~57.0.1",
     "react": "19.2.3",
     "react-native": "0.86.0",
     "react-native-background-fetch": "^4.4.2",
     "react-native-background-geolocation": "^5.4.0",
+    "react-native-gesture-handler": "~2.32.0",
     "react-native-safe-area-context": "~5.7.0",
     "react-native-screens": "~4.26.0"
   },

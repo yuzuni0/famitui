@@ -34,6 +34,12 @@
         }
       ],
       [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png"
+        }
+      ],
+      [
         "expo-image-picker",
         {
           "photosPermission": "保存済みの写真から不足品を検出するために使用します。"
@@ -48,7 +54,9 @@
       "@maplibre/maplibre-react-native",
       [
         "react-native-background-geolocation",
-        { "license": "" }
+        {
+          "license": ""
+        }
       ],
       "react-native-background-fetch",
       [

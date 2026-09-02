@@ -1,16 +1,14 @@
 import { onCall, HttpsError } from "firebase-functions/https";
-import { defineSecret } from "firebase-functions/params";
 import { logger } from "firebase-functions/v2";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
-import {CategoryId, categoryListForPrompt, isCategoryId,
+import {
+  CategoryId, categoryListForPrompt, toCategoryIds,
 } from "../lib/categories";
-import { isGeoPoint } from "../lib/geo";
-
-const openaiApiKey = defineSecret("OPENAI_API_KEY");
-
-const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
-
-const MODEL = "gpt-4o";
+import { openaiApiKey, requestClassification } from "../lib/openai";
+import {
+  isStringArray, requireAuth, requireGeoPoint,
+  requireMembership, requireNonEmptyString,
+} from "../lib/request";
 
 // APIの出力・トークン設定
 const MAX_TOKENS = 200;
@@ -19,21 +17,11 @@ const STORE_NAME_MAX_LENGTH = 50;
 
 const ADDRESS_MAX_LENGTH = 200;
 
-function isNonEmptyString(value: unknown): value is string {
-  return typeof value === "string" && value.length > 0;
-}
-
-function isStringArray(value: unknown): value is string[] {
-  return Array.isArray(value) &&
-    value.every((entry) => typeof entry === "string");
-}
-
 // APIへのプロンプト
 function buildPrompt(storeName: string, osmCategories: string[]): string {
   const tagList = osmCategories.length > 0 ?
     osmCategories.join(", ") :
     "(なし)";
-  const categoryList = categoryListForPrompt();
   return [
     "あなたは店舗で購入できる商品のカテゴリを判定する担当です。",
     "店舗名と OpenStreetMap のタグから判定し、JSON だけを返してください。",
@@ -41,7 +29,7 @@ function buildPrompt(storeName: string, osmCategories: string[]): string {
     `店舗名: ${storeName}`,
     `タグ: ${tagList}`,
     "",
-    `カテゴリは次の5つです。${categoryList}`,
+    `カテゴリは次の5つです。${categoryListForPrompt()}`,
     "この店舗で購入できるカテゴリをすべて選んでください。",
     "判断がつかない場合は、日本の一般的な店舗の実態に基づいて推定してください。",
     "",
@@ -67,14 +55,7 @@ function parseCategories(content: string): CategoryId[] | null {
   if (!Array.isArray(categories)) {
     return null;
   }
-
-  const result: CategoryId[] = [];
-  for (const raw of categories) {
-    if (isCategoryId(raw) && !result.includes(raw)) {
-      result.push(raw);
-    }
-  }
-  return result;
+  return toCategoryIds(categories);
 }
 
 // APIを呼び出して店のカテゴリを判定する
@@ -82,44 +63,12 @@ async function classifyCategories(
   storeName: string,
   osmCategories: string[]
 ): Promise<CategoryId[]> {
-  let response: Response;
-  try {
-    response = await fetch(OPENAI_URL, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${openaiApiKey.value()}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        max_tokens: MAX_TOKENS,
-        // JSON形式
-        response_format: { type: "json_object" },
-        messages: [
-          { role: "user", content: buildPrompt(storeName, osmCategories) },
-        ],
-      }),
-    });
-  } catch (fetchError) {
-    logger.error("カテゴリの判定を呼び出せません", { storeName, fetchError });
-    return [];
-  }
-
-  if (!response.ok) {
-    logger.error("カテゴリの判定に失敗しました", {
-      storeName,
-      status: response.status,
-      body: await response.text(),
-    });
-    return [];
-  }
-
-  const data = await response.json() as {
-    choices?: { message?: { content?: string } }[];
-  };
-  const content = data.choices?.[0]?.message?.content;
-  if (typeof content !== "string") {
-    logger.error("カテゴリの判定の結果を受け取れませんでした", { storeName });
+  const content = await requestClassification(
+    buildPrompt(storeName, osmCategories),
+    MAX_TOKENS,
+    { storeName }
+  );
+  if (content === null) {
     return [];
   }
 
@@ -138,34 +87,15 @@ async function classifyCategories(
 export const storeCategories = onCall(
   { secrets: [openaiApiKey], timeoutSeconds: 60 },
   async (request) => {
-    if (!request.auth) {
-      throw new HttpsError("unauthenticated", "ログインが必要です。");
-    }
-    const uid = request.auth.uid;
+    const uid = requireAuth(request);
 
-    const familyId = request.data?.familyId;
-    if (!isNonEmptyString(familyId)) {
-      throw new HttpsError(
-        "invalid-argument",
-        "familyId は文字列で指定してください。"
-      );
-    }
+    const familyId = requireNonEmptyString(request.data?.familyId, "familyId");
+    const sourceId = requireNonEmptyString(request.data?.sourceId, "sourceId");
 
-    const sourceId = request.data?.sourceId;
-    if (!isNonEmptyString(sourceId)) {
-      throw new HttpsError(
-        "invalid-argument",
-        "sourceId は文字列で指定してください。"
-      );
-    }
-
-    const storeName = request.data?.storeName;
-    if (!isNonEmptyString(storeName)) {
-      throw new HttpsError(
-        "invalid-argument",
-        "storeName は文字列で指定してください。"
-      );
-    }
+    const storeName = requireNonEmptyString(
+      request.data?.storeName,
+      "storeName"
+    );
     if (storeName.length > STORE_NAME_MAX_LENGTH) {
       throw new HttpsError(
         "invalid-argument",
@@ -173,13 +103,7 @@ export const storeCategories = onCall(
       );
     }
 
-    const location = request.data?.location;
-    if (!isGeoPoint(location)) {
-      throw new HttpsError(
-        "invalid-argument",
-        "location は有効な座標で指定してください。"
-      );
-    }
+    const location = requireGeoPoint(request.data?.location, "location");
 
     const address = request.data?.address;
     if (address !== null && typeof address !== "string") {
@@ -204,22 +128,14 @@ export const storeCategories = onCall(
     }
 
     const db = getFirestore();
-    const familyRef = db.collection("families").doc(familyId);
-
-    const memberSnapshot = await familyRef.collection("members").doc(uid).get();
-    if (!memberSnapshot.exists) {
-      throw new HttpsError(
-        "permission-denied",
-        "この家族グループに所属していません。"
-      );
-    }
+    const familyRef = await requireMembership(db, familyId, uid);
 
     // 保存されていればその値を返す
     const storeRef = familyRef.collection("stores").doc(sourceId);
     const storeSnapshot = await storeRef.get();
     if (storeSnapshot.exists) {
       const saved = storeSnapshot.data()?.categories;
-      const categories = Array.isArray(saved) ? saved.filter(isCategoryId) : [];
+      const categories = Array.isArray(saved) ? toCategoryIds(saved) : [];
       return { storeId: sourceId, categories };
     }
 

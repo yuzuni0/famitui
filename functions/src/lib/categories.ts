@@ -21,6 +21,10 @@ export function isCategoryId(value: unknown): value is CategoryId {
   return CATEGORY_IDS.includes(value as CategoryId);
 }
 
+export function toCategoryIds(values: unknown[]): CategoryId[] {
+  return [...new Set(values.filter(isCategoryId))];
+}
+
 // プロンプトに載せるカテゴリの一覧
 export function categoryListForPrompt(): string {
   return CATEGORY_IDS

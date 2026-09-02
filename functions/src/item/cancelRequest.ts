@@ -1,63 +1,12 @@
 import { onCall, HttpsError } from "firebase-functions/https";
-import { getFirestore } from "firebase-admin/firestore";
+import { runItemTransaction } from "../lib/itemTransaction";
 
 // 依頼品を不足品へ戻す
-export const cancelRequest = onCall(
-  { region: "asia-northeast1" },
-  async (request) => {
-    // 呼び出し元の確認を行う
-    if (!request.auth) {
-      throw new HttpsError("unauthenticated", "ログインが必要です。");
-    }
-    const uid = request.auth.uid;
-
-    const familyId = request.data?.familyId;
-    if (typeof familyId !== "string") {
-      throw new HttpsError(
-        "invalid-argument",
-        "familyId は文字列で指定してください。"
-      );
-    }
-
-    const itemId = request.data?.itemId;
-    if (typeof itemId !== "string") {
-      throw new HttpsError(
-        "invalid-argument",
-        "itemId は文字列で指定してください。"
-      );
-    }
-
-    const db = getFirestore();
-
-    await db.runTransaction(async (tx) => {
-      const familyRef = db.collection("families").doc(familyId);
-      const memberRef = familyRef.collection("members").doc(uid);
-      const itemRef = familyRef.collection("items").doc(itemId);
-
-      // まず読み取りを行う
-      const memberSnapshot = await tx.get(memberRef);
-      const itemSnapshot = await tx.get(itemRef);
-
-      if (!memberSnapshot.exists) {
-        throw new HttpsError(
-          "permission-denied",
-          "この家族グループに所属していません。"
-        );
-      }
-
-      // item の存在を確認する
-      const item = itemSnapshot.data();
-      if (!item) {
-        throw new HttpsError("not-found", "品目が見つかりません。");
-      }
-
-      if (item.status === "completed") {
-        throw new HttpsError(
-          "failed-precondition",
-          "完了した品目の依頼は取り下げられません。"
-        );
-      }
-
+export const cancelRequest = onCall(async (request) => {
+  const { itemId } = await runItemTransaction(
+    request,
+    "完了した品目の依頼は取り下げられません。",
+    ({ tx, itemRef, item }) => {
       // 依頼が出ていない品目は取り下げられない
       if (item.requesterUserId === null) {
         throw new HttpsError(
@@ -80,8 +29,8 @@ export const cancelRequest = onCall(
         requesterUserId: null,
         rejectedUserIds: [],
       });
-    });
+    }
+  );
 
-    return { itemId };
-  }
-);
+  return { itemId };
+});

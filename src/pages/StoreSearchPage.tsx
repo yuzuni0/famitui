@@ -2,12 +2,14 @@ import { Camera, Map, Marker } from '@maplibre/maplibre-react-native';
 import type { CameraRef, MapRef } from '@maplibre/maplibre-react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import * as Location from 'expo-location';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Button, FlatList, Pressable, StyleSheet, Text, TextInput, View, } from 'react-native';
 
 import { errorMessage } from '../lib/errors';
+import { formatDistance } from '../lib/format';
+import { DEFAULT_CENTER, MAP_STYLE_URL, toLngLat } from '../lib/map';
 import type { MainStackParamList } from '../navigation/RootNavigator';
+import { fetchCurrentLocation } from '../services/location';
 import { searchPlaces } from '../services/mapSearch';
 import type { SearchResult } from '../services/mapSearch';
 import { classifyStore } from '../services/storeActions';
@@ -17,12 +19,6 @@ import type { CategoryId, GeoPoint } from '../types/firestore';
 type Props = {
   familyId: string;
 };
-
-//自宅位置の指定とほぼ同じ
-const MAP_STYLE_URL = `https://api.maptiler.com/maps/streets-v2/style.json?key=${process.env.EXPO_PUBLIC_MAPTILER_API_KEY ?? ''}`;
-
-//初期座標
-const DEFAULT_CENTER: GeoPoint = { latitude: 35.681236, longitude: 139.767125 };
 
 //地図のズーム
 const INITIAL_ZOOM = 14;
@@ -38,33 +34,6 @@ export function takePendingStore(): PendingStore | null {
   const store = pendingStore;
   pendingStore = null;
   return store;
-}
-
-//座標に変換する
-function toLngLat(point: GeoPoint): [number, number] {
-  return [point.longitude, point.latitude];
-}
-
-//現在地の取得
-async function fetchCurrentLocation(): Promise<GeoPoint | null> {
-  const permission = await Location.requestForegroundPermissionsAsync();
-  if (!permission.granted) {
-    return null;
-  }
-
-  const position = await Location.getCurrentPositionAsync();
-  return {
-    latitude: position.coords.latitude,
-    longitude: position.coords.longitude,
-  };
-}
-
-//距離の表示
-function formatDistance(meters: number): string {
-  if (meters < 1000) {
-    return `${Math.round(meters)}m`;
-  }
-  return `${(meters / 1000).toFixed(1)}km`;
 }
 
 export default function StoreSearchPage({ familyId }: Props) {

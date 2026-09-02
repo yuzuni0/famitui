@@ -4,6 +4,21 @@ import type { GeoPoint } from '../types/firestore';
 //地球の半径（メートル）
 const EARTH_RADIUS_METERS = 6371000;
 
+//緯度と経度の値を確認する
+export function isGeoPoint(value: unknown): value is GeoPoint {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+  const { latitude, longitude } = value as { latitude?: unknown; longitude?: unknown };
+  if (typeof latitude !== 'number' || typeof longitude !== 'number') {
+    return false;
+  }
+  if (Number.isNaN(latitude) || Number.isNaN(longitude)) {
+    return false;
+  }
+  return latitude >= -90 && latitude <= 90 && longitude >= -180 && longitude <= 180;
+}
+
 //度数をラジアンに変換する
 function toRadians(degrees: number): number {
   return (degrees * Math.PI) / 180;

@@ -7,8 +7,8 @@ import { errorMessage } from '../lib/errors';
 import type { MainStackParamList } from '../navigation/RootNavigator';
 import { detectItems } from '../services/detectActions';
 import { createItem } from '../services/item';
-import { updateStockStandard } from '../services/stockStandard';
-import type { CameraMode, DetectedItem, StandardLabel } from '../types/firestore';
+import { observeStockStandard, updateStockStandard } from '../services/stockStandard';
+import type { CameraMode, DetectedItem, StandardLabel, StockStandardDoc } from '../types/firestore';
 //撮影した画像から不足品を判定する画面
 
 type Props = {
@@ -37,6 +37,7 @@ export default function DetectionResultPage({ familyId, uid, storagePath, mode }
   const [detected, setDetected] = useState<DetectedItem[] | null>(null);
   //mode が 'detect' の場合のみ入る
   const [missing, setMissing] = useState<DetectedItem[] | null>(null);
+  const [standard, setStandard] = useState<StockStandardDoc | null | undefined>(undefined);
   const [selectedLabels, setSelectedLabels] = useState<Set<string>>(() => new Set());
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -79,6 +80,13 @@ export default function DetectionResultPage({ familyId, uid, storagePath, mode }
       active = false;
     };
   }, [familyId, storagePath, mode]);
+
+  //基準が無いのと不足が無いのを区別する
+  useEffect(() => {
+    setStandard(undefined);
+    const unsubscribe = observeStockStandard(familyId, setStandard);
+    return unsubscribe;
+  }, [familyId]);
 
   //選択と解除を切り替える
   function handlePressItem(item: DetectedItem) {
@@ -126,7 +134,7 @@ export default function DetectionResultPage({ familyId, uid, storagePath, mode }
       return;
     }
 
-    navigation.navigate('ItemList');
+    navigation.popTo('ItemList');
   }
 
   //選んだ候補を不足品として順に登録する
@@ -165,7 +173,7 @@ export default function DetectionResultPage({ familyId, uid, storagePath, mode }
       }
     }
 
-    navigation.navigate('ItemList');
+    navigation.popTo('ItemList');
   }
 
   //判定には10秒以上かかる場合がある
@@ -190,6 +198,10 @@ export default function DetectionResultPage({ familyId, uid, storagePath, mode }
 
   const selectedCount = selectedLabels.size;
 
+  const noStandard = standard === null || (standard !== undefined && standard.labels.length === 0);
+
+  const noMissing = mode === 'detect' && missing !== null && missing.length === 0 && !noStandard;
+
   return (
     <View style={styles.container}>
       <Text style={styles.mode}>{MODE_LABELS[mode]}</Text>
@@ -201,10 +213,11 @@ export default function DetectionResultPage({ familyId, uid, storagePath, mode }
           <View style={styles.section}>
             <Text style={styles.sectionHeader}>不足している可能性のある品目</Text>
 
-            {/* 基準が無い場合も候補は空になる */}
             {missing.length === 0 ? (
               <Text style={styles.empty}>
-                基準が登録されていません。先に基準を登録してください。
+                {noStandard
+                  ? '基準が登録されていません。先に基準を登録してください。'
+                  : '不足品はありませんでした。基準の品目はすべて写っています。'}
               </Text>
             ) : (
               missing.map((item, index) => {
@@ -267,6 +280,9 @@ export default function DetectionResultPage({ familyId, uid, storagePath, mode }
           onPress={handleSubmitBaseline}
           disabled={submitting}
         />
+      ) : noMissing ? (
+        //一覧へ戻るだけ
+        <Button title="一覧に戻る" onPress={() => navigation.popTo('ItemList')} />
       ) : missing !== null && missing.length === 0 ? (
         //基準の登録へ促す
         <Button
@@ -282,7 +298,9 @@ export default function DetectionResultPage({ familyId, uid, storagePath, mode }
         />
       )}
 
-      <Button title="やめる" onPress={() => navigation.goBack()} disabled={submitting} />
+      {!noMissing && (
+        <Button title="やめる" onPress={() => navigation.goBack()} disabled={submitting} />
+      )}
     </View>
   );
 }

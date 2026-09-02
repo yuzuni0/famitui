@@ -1,5 +1,7 @@
-import { addDoc, collection, deleteDoc, doc, getFirestore, onSnapshot, orderBy, query, serverTimestamp, updateDoc, } from '@react-native-firebase/firestore';
+import { addDoc, collection, deleteDoc, doc, getDocs, getFirestore, orderBy, query, serverTimestamp, updateDoc, } from '@react-native-firebase/firestore';
 import type { CategoryId, ItemDoc } from '../types/firestore';
+import { observeCollection } from './observe';
+import type { WithId } from './observe';
 //items/{itemId} の読み書きを行う
 
 const FAMILIES_COLLECTION = 'families';
@@ -7,7 +9,7 @@ const FAMILIES_COLLECTION = 'families';
 const ITEMS_COLLECTION = 'items';
 
 //ドキュメントIDを含めた不足品
-export type ItemWithId = { id: string } & ItemDoc;
+export type ItemWithId = WithId<ItemDoc>;
 
 //利用者が入力する内容を持つ
 export type CreateItemInput = {
@@ -135,18 +137,20 @@ export function observeItems(
   callback: (items: ItemWithId[]) => void,
   onError?: (error: Error) => void,
 ): () => void {
-  return onSnapshot(
+  return observeCollection<ItemDoc>(
     query(itemsCollectionRef(familyId), orderBy('createdTime', 'desc')),
-    snapshot => {
-      const items = snapshot.docs.map(document => ({
-        id: document.id,
-        ...(document.data() as ItemDoc),
-      }));
-      callback(sortItems(items));
-    },
-    error => {
-      console.warn(`observeItems failed: ${familyId}`, error);
-      onError?.(error);
-    },
+    `observeItems failed: ${familyId}`,
+    items => callback(sortItems(items)),
+    onError,
+  );
+}
+
+//不足品を1回取得する
+export async function fetchItems(familyId: string): Promise<ItemWithId[]> {
+  const snapshot = await getDocs(
+    query(itemsCollectionRef(familyId), orderBy('createdTime', 'desc')),
+  );
+  return sortItems(
+    snapshot.docs.map(document => ({ id: document.id, ...(document.data() as ItemDoc) })),
   );
 }

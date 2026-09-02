@@ -153,7 +153,9 @@ service cloud.firestore {
                'transportMode',
                'transportModeExpireTime',
                'busyUntilTime',
-               'busyLabel'])
+               'busyLabel',
+               'fcmToken'])
+          //fcmToken は端末の状態であり既存メンバーが持たないため hasAll には含めない
           && request.resource.data.keys().hasAll([
                'displayName', 'transportMode', 'transportModeExpireTime',
                'busyUntilTime', 'busyLabel'])
@@ -161,7 +163,8 @@ service cloud.firestore {
           && validTransportMode(request.resource.data.transportMode)
           && nullOrTimestamp(request.resource.data.transportModeExpireTime)
           && nullOrTimestamp(request.resource.data.busyUntilTime)
-          && nullOrString(request.resource.data.busyLabel, 20);
+          && nullOrString(request.resource.data.busyLabel, 20)
+          && nullOrString(request.resource.data.get('fcmToken', null), 4096);
       }
 
       //不足品(items)

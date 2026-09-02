@@ -1,5 +1,7 @@
-import { collection, doc, getFirestore, onSnapshot, orderBy, query, Timestamp, updateDoc, } from '@react-native-firebase/firestore';
+import { collection, doc, getFirestore, orderBy, query, Timestamp, updateDoc, } from '@react-native-firebase/firestore';
 import type { MemberDoc, TransportMode } from '../types/firestore';
+import { observeCollection, observeDoc } from './observe';
+import type { WithId } from './observe';
 //members/{uid} の読み書きを行う
 
 const FAMILIES_COLLECTION = 'families';
@@ -9,7 +11,7 @@ const MEMBERS_COLLECTION = 'members';
 //移動手段を手動で設定した際の期限
 const TRANSPORT_MODE_DURATION_MS = 3 * 60 * 60 * 1000;
 
-export type MemberWithId = { id: string } & MemberDoc;
+export type MemberWithId = WithId<MemberDoc>;
 
 export type UpdateMemberStatusInput = Partial<
   Pick<
@@ -78,19 +80,11 @@ export function observeMembers(
   callback: (members: MemberWithId[]) => void,
   onError?: (error: Error) => void,
 ): () => void {
-  return onSnapshot(
+  return observeCollection<MemberDoc>(
     query(membersCollectionRef(familyId), orderBy('joinedTime', 'asc')),
-    snapshot => {
-      const members = snapshot.docs.map(document => ({
-        id: document.id,
-        ...(document.data() as MemberDoc),
-      }));
-      callback(members);
-    },
-    error => {
-      console.warn(`observeMembers failed: ${familyId}`, error);
-      onError?.(error);
-    },
+    `observeMembers failed: ${familyId}`,
+    callback,
+    onError,
   );
 }
 
@@ -101,16 +95,10 @@ export function observeMember(
   callback: (member: MemberWithId | null) => void,
   onError?: (error: Error) => void,
 ): () => void {
-  return onSnapshot(
+  return observeDoc<MemberDoc>(
     memberDocRef(familyId, uid),
-    snapshot => {
-      callback(
-        snapshot.exists() ? { id: snapshot.id, ...(snapshot.data() as MemberDoc) } : null,
-      );
-    },
-    error => {
-      console.warn(`observeMember failed: ${familyId}/${uid}`, error);
-      onError?.(error);
-    },
+    `observeMember failed: ${familyId}/${uid}`,
+    callback,
+    onError,
   );
 }

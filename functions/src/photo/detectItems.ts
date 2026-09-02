@@ -1,21 +1,10 @@
 import { onCall, HttpsError } from "firebase-functions/https";
-import { defineSecret } from "firebase-functions/params";
 import { logger } from "firebase-functions/v2";
 import { getFirestore } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
-
-// secrets に渡さないと、実行環境にキーが渡らない
-const openaiApiKey = defineSecret("OPENAI_API_KEY");
-
-const CATEGORY_IDS = [
-  "dailyGoods",
-  "beverage",
-  "food",
-  "freshFood",
-  "stationery",
-] as const;
-
-type CategoryId = (typeof CATEGORY_IDS)[number];
+import { CATEGORY_IDS, CategoryId, isCategoryId } from "../lib/categories";
+import { OPENAI_MODEL, OPENAI_URL, openaiApiKey } from "../lib/openai";
+import { requireAuth, requireMembership, requireString } from "../lib/request";
 
 type DetectedItem = {
   itemName: string;
@@ -28,19 +17,11 @@ type StandardLabel = {
   category: CategoryId;
 };
 
-const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
-
-const MODEL = "gpt-4o";
-
 // 応答に上限を設ける
 const MAX_TOKENS = 1000;
 
 // ドキュメントIDを固定する
 const STANDARD_DOC_ID = "default";
-
-function isCategoryId(value: unknown): value is CategoryId {
-  return CATEGORY_IDS.includes(value as CategoryId);
-}
 
 function toStandardLabels(value: unknown): StandardLabel[] {
   if (!Array.isArray(value)) {
@@ -146,26 +127,9 @@ function missingItems(
 export const detectItems = onCall(
   { secrets: [openaiApiKey], timeoutSeconds: 120 },
   async (request) => {
-    if (!request.auth) {
-      throw new HttpsError("unauthenticated", "ログインが必要です。");
-    }
-    const uid = request.auth.uid;
-
-    const familyId = request.data?.familyId;
-    if (typeof familyId !== "string") {
-      throw new HttpsError(
-        "invalid-argument",
-        "familyId は文字列で指定してください。"
-      );
-    }
-
-    const storagePath = request.data?.storagePath;
-    if (typeof storagePath !== "string") {
-      throw new HttpsError(
-        "invalid-argument",
-        "storagePath は文字列で指定してください。"
-      );
-    }
+    const uid = requireAuth(request);
+    const familyId = requireString(request.data?.familyId, "familyId");
+    const storagePath = requireString(request.data?.storagePath, "storagePath");
 
     const mode = request.data?.mode;
     if (mode !== "baseline" && mode !== "detect") {
@@ -175,18 +139,9 @@ export const detectItems = onCall(
       );
     }
 
-    const db = getFirestore();
-    const familyRef = db.collection("families").doc(familyId);
+    const familyRef = await requireMembership(getFirestore(), familyId, uid);
 
-    const memberSnapshot = await familyRef.collection("members").doc(uid).get();
-    if (!memberSnapshot.exists) {
-      throw new HttpsError(
-        "permission-denied",
-        "この家族グループに所属していません。"
-      );
-    }
-
-    // 家族グループでの判定
+    // 画像の判定
     if (!storagePath.startsWith(`families/${familyId}/photos/`)) {
       throw new HttpsError(
         "permission-denied",
@@ -220,7 +175,7 @@ export const detectItems = onCall(
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: MODEL,
+        model: OPENAI_MODEL,
         max_tokens: MAX_TOKENS,
         // JSON での応答を強制する
         response_format: { type: "json_object" },

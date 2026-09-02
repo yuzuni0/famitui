@@ -1,109 +1,49 @@
-import { getApp } from '@react-native-firebase/app';
-import { getFunctions, httpsCallable } from '@react-native-firebase/functions';
+import { callFunction } from './functionsClient';
+
 //品目の状態を変える Cloud Functions を呼び出す
 
-const REGION = 'asia-northeast1';
-
-const REQUEST_ITEM = 'requestItem';
-
-const CANCEL_REQUEST_ITEM = 'cancelRequest';
-
-const APPROVE_REQUEST = 'approveRequest';
-
-const REPORT_PURCHASE = 'reportPurchase';
-
-const CANCEL_ASSIGNMENT = 'cancelAssignment';
-
-//requestItem と cancelRequest に渡す引数
-type RequestItemRequest = {
+type ItemActionRequest = {
   familyId: string;
   itemId: string;
 };
-
-//requestItem と cancelRequest の戻り値
-type RequestItemResult = {
-  itemId: string | null;
-};
-
-//approveRequest の引数
-type ApproveRequestRequest = {
-  familyId: string;
-  itemId: string;
-};
-
-//approveRequest の戻り値
-type ApproveRequestResult = {
-  assignmentId: string;
-};
-
-//reportPurchase の引数
-type ReportPurchaseRequest = {
-  familyId: string;
-  itemId: string;
-};
-
-//reportPurchase の戻り値
-type ReportPurchaseResult = {
-  itemId: string;
-};
-
-//cancelAssignment の引数
-type CancelAssignmentRequest = {
-  familyId: string;
-  itemId: string;
-};
-
-//cancelAssignment の戻り値
-type CancelAssignmentResult = {
-  itemId: string;
-};
-
-function itemFunctions() {
-  return getFunctions(getApp(), REGION);
-}
 
 //不足品を依頼品へ切り替える
 export async function requestItem(familyId: string, itemId: string): Promise<void> {
-  const callable = httpsCallable<RequestItemRequest, RequestItemResult>(
-    itemFunctions(),
-    REQUEST_ITEM,
-  );
-  await callable({ familyId, itemId });
+  await callFunction<ItemActionRequest, { itemId: string | null }>('requestItem', {
+    familyId,
+    itemId,
+  });
 }
 
 //依頼品を不足品へ戻す
 export async function cancelRequestItem(familyId: string, itemId: string): Promise<void> {
-  const callable = httpsCallable<RequestItemRequest, RequestItemResult>(
-    itemFunctions(),
-    CANCEL_REQUEST_ITEM,
-  );
-  await callable({ familyId, itemId });
+  await callFunction<ItemActionRequest, { itemId: string | null }>('cancelRequest', {
+    familyId,
+    itemId,
+  });
 }
 
 //依頼を承認して自分を担当者にする
 export async function approveRequest(familyId: string, itemId: string): Promise<string> {
-  const callable = httpsCallable<ApproveRequestRequest, ApproveRequestResult>(
-    itemFunctions(),
-    APPROVE_REQUEST,
+  const result = await callFunction<ItemActionRequest, { assignmentId: string }>(
+    'approveRequest',
+    { familyId, itemId },
   );
-  const response = await callable({ familyId, itemId });
-  return response.data.assignmentId;
+  return result.assignmentId;
 }
 
 //購入を報告して依頼を完了させる
 export async function reportPurchase(familyId: string, itemId: string): Promise<void> {
-  const callable = httpsCallable<ReportPurchaseRequest, ReportPurchaseResult>(
-    itemFunctions(),
-    REPORT_PURCHASE,
-  );
-  await callable({ familyId, itemId });
+  await callFunction<ItemActionRequest, { itemId: string }>('reportPurchase', {
+    familyId,
+    itemId,
+  });
 }
 
 //担当を辞退して依頼品へ戻す
 export async function cancelAssignment(familyId: string, itemId: string): Promise<void> {
-  const callable = httpsCallable<CancelAssignmentRequest, CancelAssignmentResult>(
-    itemFunctions(),
-    CANCEL_ASSIGNMENT,
-  );
-  await callable({ familyId, itemId });
+  await callFunction<ItemActionRequest, { itemId: string }>('cancelAssignment', {
+    familyId,
+    itemId,
+  });
 }

@@ -2,14 +2,15 @@ import { Camera, Map, Marker } from '@maplibre/maplibre-react-native';
 import type { CameraRef, PressEvent } from '@maplibre/maplibre-react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import * as Location from 'expo-location';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Button, StyleSheet, Text, View } from 'react-native';
 import type { NativeSyntheticEvent } from 'react-native';
 
 import { errorMessage } from '../lib/errors';
+import { DEFAULT_CENTER, MAP_STYLE_URL, toLngLat } from '../lib/map';
 import type { MainStackParamList } from '../navigation/RootNavigator';
 import { observeFamilyDoc, updateHomeLocation } from '../services/family';
+import { fetchCurrentLocation } from '../services/location';
 import type { FamilyDoc, GeoPoint } from '../types/firestore';
 
 //家の位置を設定する画面
@@ -17,33 +18,8 @@ type Props = {
   familyId: string;
 };
 
-//MapTiler のスタイル URL
-const MAP_STYLE_URL = `https://api.maptiler.com/maps/streets-v2/style.json?key=${process.env.EXPO_PUBLIC_MAPTILER_API_KEY ?? ''}`;
-
-//位置情報が無い時に使う座標(東京駅）
-const DEFAULT_CENTER: GeoPoint = { latitude: 35.681236, longitude: 139.767125 };
-
 //地図の初期のズーム値
 const INITIAL_ZOOM = 15;
-
-//GeoPointをMapLibre の座標に変換する
-function toLngLat(point: GeoPoint): [number, number] {
-  return [point.longitude, point.latitude];
-}
-
-//expo-location で現在地を取得する
-async function fetchCurrentLocation(): Promise<GeoPoint | null> {
-  const permission = await Location.requestForegroundPermissionsAsync();
-  if (!permission.granted) {
-    return null;
-  }
-
-  const position = await Location.getCurrentPositionAsync();
-  return {
-    latitude: position.coords.latitude,
-    longitude: position.coords.longitude,
-  };
-}
 
 export default function HomeLocationPage({ familyId }: Props) {
 

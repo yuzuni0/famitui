@@ -1,3 +1,4 @@
+import { isGeoPoint } from '../lib/geo';
 import type { GeoPoint } from '../types/firestore';
 //Overpass API で周辺の店舗を取得する
 //外部APIの呼び出しのみを担い、Firestore には触れない
@@ -36,21 +37,6 @@ type OverpassElement = {
 type OverpassResponse = {
   elements?: unknown;
 };
-
-//緯度と経度の値を確認する
-function isGeoPoint(value: unknown): value is GeoPoint {
-  if (typeof value !== 'object' || value === null) {
-    return false;
-  }
-  const { latitude, longitude } = value as { latitude?: unknown; longitude?: unknown };
-  if (typeof latitude !== 'number' || typeof longitude !== 'number') {
-    return false;
-  }
-  if (Number.isNaN(latitude) || Number.isNaN(longitude)) {
-    return false;
-  }
-  return latitude >= -90 && latitude <= 90 && longitude >= -180 && longitude <= 180;
-}
 
 function timeoutSignal(ms: number): AbortSignal {
   if (typeof AbortSignal.timeout === 'function') {

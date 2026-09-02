@@ -1,6 +1,8 @@
 import { onCall, HttpsError } from "firebase-functions/https";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { issueUniqueInviteCode } from "../lib/inviteCode";
+import { initialMemberData, requireUnaffiliatedUser } from "../lib/member";
+import { requireAuth, requireString } from "../lib/request";
 
 // 家族名の文字数の範囲
 const FAMILY_NAME_MIN_LENGTH = 1;
@@ -8,21 +10,10 @@ const FAMILY_NAME_MAX_LENGTH = 20;
 
 // 家族グループを新規作成し、familyId と招待コードを返す
 export const createFamily = onCall(async (request) => {
-  // 呼び出し元の確認を行う
-  if (!request.auth) {
-    throw new HttpsError("unauthenticated", "ログインが必要です。");
-  }
-  const uid = request.auth.uid;
+  const uid = requireAuth(request);
 
-  const rawFamilyName = request.data?.familyName;
-  if (typeof rawFamilyName !== "string") {
-    throw new HttpsError(
-      "invalid-argument",
-      "familyName は文字列で指定してください。"
-    );
-  }
-
-  const familyName = rawFamilyName.trim();
+  const familyName =
+    requireString(request.data?.familyName, "familyName").trim();
 
   const familyNameLength = [...familyName].length;
   if (
@@ -35,72 +26,41 @@ export const createFamily = onCall(async (request) => {
     );
   }
 
-  // トランザクションでの書き込み
   const db = getFirestore();
 
-  const result = await db.runTransaction(async (tx) => {
-    // ユーザー情報の取得(uid の familyId)
+  return db.runTransaction(async (tx) => {
     const userRef = db.collection("users").doc(uid);
 
     // 書き込みより前に全ての読み取りを終える
     const userSnapshot = await tx.get(userRef);
     const inviteCodeRef = await issueUniqueInviteCode(db, tx);
 
-    // ドキュメントが存在しない場合、undefined を返す
-    const user = userSnapshot.data();
-    if (!user) {
-      throw new HttpsError(
-        "failed-precondition",
-        "ユーザー情報が登録されていません。"
-      );
-    }
+    const user = requireUnaffiliatedUser(userSnapshot.data());
 
-    if (typeof user.familyId === "string") {
-      throw new HttpsError(
-        "failed-precondition",
-        "既に家族グループに所属しています。"
-      );
-    }
-
-    // familyId を生成する
     const familyRef = db.collection("families").doc();
-
-    // {familyId} を作成する
 
     tx.create(familyRef, {
       familyName,
       inviteCode: inviteCodeRef.id,
       creatorUserId: uid,
       createdTime: FieldValue.serverTimestamp(),
-      // 家の位置(初期値)
+      // 家の位置
       homeLocation: null,
     });
 
-    // {uid}を作成する
-    tx.create(familyRef.collection("members").doc(uid), {
-      displayName: user.displayName,
-      joinedTime: FieldValue.serverTimestamp(),
-      transportMode: "none",
-      transportModeExpireTime: null,
-      busyUntilTime: null,
-      busyLabel: null,
-      level: 1,
-      score: 0,
-    });
+    tx.create(
+      familyRef.collection("members").doc(uid),
+      initialMemberData(user.displayName)
+    );
 
-    // {inviteCode}を作成する
     tx.create(inviteCodeRef, {
       familyId: familyRef.id,
       creatorUserId: uid,
       createdTime: FieldValue.serverTimestamp(),
     });
 
-    // {uid} の familyId を更新する
     tx.update(userRef, { familyId: familyRef.id });
 
     return { familyId: familyRef.id, inviteCode: inviteCodeRef.id };
   });
-
-  // 画面で招待コードを表示する
-  return result;
 });
