@@ -7,7 +7,7 @@ import { errorMessage } from '../lib/errors';
 import type { MainStackParamList } from '../navigation/RootNavigator';
 import { isAssigned, itemStateLabel, observeItems } from '../services/item';
 import type { ItemWithId } from '../services/item';
-import { approveRequest } from '../services/itemActions';
+import { approveRequest, failedItemId } from '../services/itemActions';
 import { CATEGORIES } from '../types/firestore';
 
 //依頼を受け付ける品目をまとめて選ぶ画面
@@ -111,7 +111,7 @@ export default function AcceptRequestPage({ familyId, initialItemId }: Props) {
     });
   }
 
-  //選んだ不足品を順に承認する
+  //選んだ不足品をまとめて承認する
   async function handleSubmit() {
     if (submitting || items === null) {
       return;
@@ -127,16 +127,16 @@ export default function AcceptRequestPage({ familyId, initialItemId }: Props) {
     setError(null);
     setSubmitting(true);
 
-    //途中で失敗した時に、成功した不足品を確認する
-    for (const item of targets) {
-      try {
-        await approveRequest(familyId, item.id);
-      } catch (submitError) {
-        //既に成功した品目は担当中のまま残す
-        setError(`「${item.itemName}」で失敗しました。${errorMessage(submitError, 'approveRequest')}`);
-        setSubmitting(false);
-        return;
-      }
+    try {
+      await approveRequest(familyId, targets.map(item => item.id));
+    } catch (submitError) {
+      //既に成功した品目は担当中のまま残す
+      const failedId = failedItemId(submitError);
+      const failedName = targets.find(item => item.id === failedId)?.itemName;
+      const prefix = failedName === undefined ? '' : `「${failedName}」で失敗しました。`;
+      setError(`${prefix}${errorMessage(submitError, 'approveRequest')}`);
+      setSubmitting(false);
+      return;
     }
 
     navigation.navigate('ItemList');

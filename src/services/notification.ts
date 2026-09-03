@@ -6,6 +6,8 @@ import type { NearbyStore } from './storeActions';
 
 const NEARBY_CHANNEL_ID = 'nearby_2';
 
+const APPROVAL_CHANNEL_ID = 'approval';
+
 // 通知の初期化
 export async function initNotifications(): Promise<void> {
   //通知を前面に表示する
@@ -23,6 +25,10 @@ export async function initNotifications(): Promise<void> {
     await Notifications.setNotificationChannelAsync(NEARBY_CHANNEL_ID, {
       name: '近くの店舗',
       importance: Notifications.AndroidImportance.MAX,
+    });
+    await Notifications.setNotificationChannelAsync(APPROVAL_CHANNEL_ID, {
+      name: '依頼の承諾',
+      importance: Notifications.AndroidImportance.HIGH,
     });
   }
 

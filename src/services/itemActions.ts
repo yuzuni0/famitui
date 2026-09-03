@@ -24,12 +24,24 @@ export async function cancelRequestItem(familyId: string, itemId: string): Promi
 }
 
 //依頼を承認して自分を担当者にする
-export async function approveRequest(familyId: string, itemId: string): Promise<string> {
-  const result = await callFunction<ItemActionRequest, { assignmentId: string }>(
+export async function approveRequest(familyId: string, itemIds: string[]): Promise<void> {
+  await callFunction<{ familyId: string; itemIds: string[] }, { itemIds: string[] }>(
     'approveRequest',
-    { familyId, itemId },
+    { familyId, itemIds },
   );
-  return result.assignmentId;
+}
+
+//失敗した品目のIDを取得する
+export function failedItemId(error: unknown): string | null {
+  if (typeof error !== 'object' || error === null || !('details' in error)) {
+    return null;
+  }
+  const details = (error as { details: unknown }).details;
+  if (typeof details !== 'object' || details === null || !('itemId' in details)) {
+    return null;
+  }
+  const itemId = (details as { itemId: unknown }).itemId;
+  return typeof itemId === 'string' ? itemId : null;
 }
 
 //購入を報告して依頼を完了させる

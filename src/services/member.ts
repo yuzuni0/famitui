@@ -74,6 +74,15 @@ export async function updateMemberStatus(
   await updateDoc(memberDocRef(familyId, uid), { ...input });
 }
 
+//通知用トークンを更新する
+export async function updateFcmToken(
+  familyId: string,
+  uid: string,
+  token: string | null,
+): Promise<void> {
+  await updateDoc(memberDocRef(familyId, uid), { fcmToken: token });
+}
+
 //家族全員の変化を監視する
 export function observeMembers(
   familyId: string,

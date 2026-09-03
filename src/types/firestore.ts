@@ -76,6 +76,7 @@ export type MemberDoc = {
   busyLabel: string | null;
   level: number;
   score: number;
+  fcmToken: string | null;
 };
 
 //inviteCodesの{code}

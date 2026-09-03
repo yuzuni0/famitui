@@ -14,10 +14,11 @@ export type ItemTransactionContext = {
   familyRef: DocumentReference;
   itemRef: DocumentReference;
   item: DocumentData;
+  member: DocumentData;
   assignmentId: string;
 };
 
-// 品目を操作する
+// リクエストから品目を特定して操作する
 export async function runItemTransaction(
   request: CallableRequest,
   completedMessage: string,
@@ -26,6 +27,19 @@ export async function runItemTransaction(
   const uid = requireAuth(request);
   const familyId = requireString(request.data?.familyId, "familyId");
   const itemId = requireString(request.data?.itemId, "itemId");
+  return runItemTransactionFor(
+    uid, familyId, itemId, completedMessage, handler
+  );
+}
+
+// 品目を操作する
+export async function runItemTransactionFor(
+  uid: string,
+  familyId: string,
+  itemId: string,
+  completedMessage: string,
+  handler: (context: ItemTransactionContext) => void | Promise<void>
+): Promise<{ itemId: string; assignmentId: string }> {
   const assignmentId = `${itemId}_${uid}`;
 
   const db = getFirestore();
@@ -39,7 +53,8 @@ export async function runItemTransaction(
     );
     const itemSnapshot = await tx.get(itemRef);
 
-    if (!memberSnapshot.exists) {
+    const member = memberSnapshot.data();
+    if (!member) {
       throw new HttpsError(
         "permission-denied",
         "この家族グループに所属していません。"
@@ -55,7 +70,9 @@ export async function runItemTransaction(
       throw new HttpsError("failed-precondition", completedMessage);
     }
 
-    await handler({ tx, uid, itemId, familyRef, itemRef, item, assignmentId });
+    await handler({
+      tx, uid, itemId, familyRef, itemRef, item, member, assignmentId,
+    });
   });
 
   return { itemId, assignmentId };

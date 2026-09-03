@@ -20,6 +20,7 @@ import SignUpPage from '../pages/SignUpPage';
 import StoreSearchPage from '../pages/StoreSearchPage';
 import TaskDetailPage from '../pages/TaskDetailPage';
 import { observeAuthState } from '../services/auth';
+import { registerFcmToken } from '../services/pushToken';
 import { observeUserDoc } from '../services/user';
 import type { UserDocSnapshot } from '../services/user';
 import type { CameraMode } from '../types/firestore';
@@ -100,6 +101,17 @@ export default function RootNavigator() {
     return unsubscribe;
   }, [uid]);
 
+  //通知用トークンを保存する
+  const familyId = userDoc?.status === 'found' ? userDoc.user.familyId : null;
+  useEffect(() => {
+    console.log('[RootNavigator] token effect', { uid, familyId });
+    if (uid === null || familyId === null) {
+      return;
+    }
+    registerFcmToken(familyId, uid).catch(error => {
+      console.warn('[RootNavigator] registerFcmToken 失敗', error);
+    });
+  }, [uid, familyId]);
 
   if (initializing) {
     return <LoadingScreen />;
@@ -129,7 +141,7 @@ export default function RootNavigator() {
     );
   }
 
-  if (userDoc.user.familyId === null) {
+  if (familyId === null) {
     return (
       <FamilySetupStack.Navigator>
         <FamilySetupStack.Screen name="FamilySetup" component={FamilySetupPage} />
@@ -137,7 +149,6 @@ export default function RootNavigator() {
     );
   }
 
-  const familyId = userDoc.user.familyId;
   return (
     <MainStack.Navigator>
       <MainStack.Screen name="Home">
