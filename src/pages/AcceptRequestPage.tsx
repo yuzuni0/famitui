@@ -139,7 +139,7 @@ export default function AcceptRequestPage({ familyId, initialItemId }: Props) {
       return;
     }
 
-    navigation.navigate('ItemList');
+    navigation.popTo('ItemList');
   }
 
   if (items === null) {

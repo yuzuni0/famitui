@@ -1,5 +1,7 @@
+import { createNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { useEffect, useState } from 'react';
+import * as Notifications from 'expo-notifications';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
 import AcceptRequestPage from '../pages/AcceptRequestPage';
@@ -20,6 +22,10 @@ import SignUpPage from '../pages/SignUpPage';
 import StoreSearchPage from '../pages/StoreSearchPage';
 import TaskDetailPage from '../pages/TaskDetailPage';
 import { observeAuthState } from '../services/auth';
+import { initBackgroundLocation, startBackgroundLocation, stopBackgroundLocation } from '../services/backgroundLocation';
+import { startGeofenceMonitor } from '../services/geofenceMonitor';
+import { initNotifications, parseNotificationData } from '../services/notification';
+import type { NotificationData } from '../services/notification';
 import { registerFcmToken } from '../services/pushToken';
 import { observeUserDoc } from '../services/user';
 import type { UserDocSnapshot } from '../services/user';
@@ -64,6 +70,9 @@ const ProfileSetupStack = createNativeStackNavigator<ProfileSetupStackParamList>
 const FamilySetupStack = createNativeStackNavigator<FamilySetupStackParamList>();
 const MainStack = createNativeStackNavigator<MainStackParamList>();
 
+//ナビゲーターの外から遷移する
+export const navigationRef = createNavigationContainerRef<MainStackParamList>();
+
 //判定が終わるまでの間に出す表示
 function LoadingScreen() {
   return (
@@ -78,6 +87,30 @@ export default function RootNavigator() {
   const [uid, setUid] = useState<string | null>(null);//uid
   const [userDoc, setUserDoc] = useState<UserDocSnapshot | null>(null);
   const [initializing, setInitializing] = useState(true);//判定中かどうか
+  const [pendingNotification, setPendingNotification] = useState<NotificationData | null>(null);
+  const handledNotificationId = useRef<string | null>(null);//同じ通知を二重に処理しない
+
+  //通知を受け取った時の処理
+  useEffect(() => {
+    const handleResponse = (response: Notifications.NotificationResponse | null) => {
+      if (response === null) {
+        return;
+      }
+      const request = response.notification.request;
+      if (handledNotificationId.current === request.identifier) {
+        return;
+      }
+      handledNotificationId.current = request.identifier;
+      setPendingNotification(parseNotificationData(request.content.data));
+    };
+
+    const subscription = Notifications.addNotificationResponseReceivedListener(handleResponse);
+    //終了状態から通知で起動された場合
+    Notifications.getLastNotificationResponseAsync().then(handleResponse).catch(error => {
+      console.warn('[RootNavigator] getLastNotificationResponseAsync 失敗', error);
+    });
+    return () => subscription.remove();
+  }, []);
 
   //ログイン状態を監視する
   useEffect(() => {
@@ -101,7 +134,7 @@ export default function RootNavigator() {
     return unsubscribe;
   }, [uid]);
 
-  //通知用トークンを保存する
+  //通知用トークンの保存と位置監視
   const familyId = userDoc?.status === 'found' ? userDoc.user.familyId : null;
   useEffect(() => {
     console.log('[RootNavigator] token effect', { uid, familyId });
@@ -111,7 +144,53 @@ export default function RootNavigator() {
     registerFcmToken(familyId, uid).catch(error => {
       console.warn('[RootNavigator] registerFcmToken 失敗', error);
     });
+
+    let cancelled = false;
+    let stopMonitor: (() => void) | null = null;
+    (async () => {
+      try {
+        await initNotifications();
+        await initBackgroundLocation();
+        await startBackgroundLocation();
+        if (cancelled) {
+          return;
+        }
+        stopMonitor = startGeofenceMonitor(familyId, uid);
+      } catch (error) {
+        console.warn('[RootNavigator] 位置監視の開始に失敗', error);
+      }
+    })();
+
+    //位置情報の取得をログアウトまで続ける
+    return () => {
+      cancelled = true;
+      stopMonitor?.();
+    };
   }, [uid, familyId]);
+
+  //ログアウト時に位置情報の取得を止める
+  const prevUid = useRef<string | null>(null);
+  useEffect(() => {
+    if (prevUid.current !== null && uid === null) {
+      stopBackgroundLocation().catch(error => {
+        console.warn('[RootNavigator] stopBackgroundLocation 失敗', error);
+      });
+    }
+    prevUid.current = uid;
+  }, [uid]);
+
+  //通知先へ遷移する
+  useEffect(() => {
+    if (familyId === null || pendingNotification === null || !navigationRef.isReady()) {
+      return;
+    }
+    setPendingNotification(null);
+    if (pendingNotification.kind === 'nearbyStore') {
+      navigationRef.navigate('AcceptRequest', { initialItemId: pendingNotification.itemIds[0] });
+    } else {
+      navigationRef.navigate('ItemList');
+    }
+  }, [familyId, pendingNotification]);
 
   if (initializing) {
     return <LoadingScreen />;
@@ -152,7 +231,7 @@ export default function RootNavigator() {
   return (
     <MainStack.Navigator>
       <MainStack.Screen name="Home">
-        {() => <HomePage familyId={familyId} />}
+        {() => <HomePage familyId={familyId} uid={uid} />}
       </MainStack.Screen>
       <MainStack.Screen name="ItemList">
         {() => <ItemListPage familyId={familyId} uid={uid} />}

@@ -149,9 +149,9 @@ async function notifyRequesters(
     const body = entries.length === 1 ?
       `${approverName}さんが「${entries[0].itemName}」を担当します` :
       `${approverName}さんが${entries.length}件の依頼を担当します`;
-    const data: Record<string, string> = entries.length === 1 ?
+    const data = entries.length === 1 ?
       { itemId: entries[0].itemId } :
-      { itemIds: entries.map((entry) => entry.itemId).join(",") };
+      { itemIds: entries.map((entry) => entry.itemId) };
 
     await sendPushToMember(
       familyId,

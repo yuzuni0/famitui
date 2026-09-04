@@ -8,14 +8,16 @@ import { errorMessage } from '../lib/errors';
 import type { MainStackParamList } from '../navigation/RootNavigator';
 import { signOut } from '../services/auth';
 import { observeFamilyDoc } from '../services/family';
+import { updateFcmToken } from '../services/member';
 import type { FamilyDoc } from '../types/firestore';
 
 
 type Props = {
   familyId: string;
+  uid: string;
 };
 
-export default function HomePage({ familyId }: Props) {
+export default function HomePage({ familyId, uid }: Props) {
 
   //ItemList画面に遷移するためのナビオブジェクトを取得
   const navigation = useNavigation<NativeStackNavigationProp<MainStackParamList>>();
@@ -58,8 +60,15 @@ export default function HomePage({ familyId }: Props) {
 
     setError(null);
     setSigningOut(true);
-    try {
 
+    //FCMトークンを削除する
+    try {
+      await updateFcmToken(familyId, uid, null);
+    } catch (tokenError) {
+      console.warn('[HomePage] updateFcmToken 失敗', tokenError);
+    }
+
+    try {
       //observeAuthState で変化を検知する
       await signOut();
     } catch (authError) {

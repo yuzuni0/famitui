@@ -158,7 +158,9 @@ export default function TaskDetailPage({ familyId, uid, itemId }: Props) {
       return;
     }
 
-    navigation.goBack();
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+    }
   }
 
   //辞退の前に確認をする
@@ -231,73 +233,73 @@ export default function TaskDetailPage({ familyId, uid, itemId }: Props) {
 
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.card}>
-        <Text style={styles.label}>商品名</Text>
-        <Text style={styles.itemName}>{item.itemName}</Text>
+          <Text style={styles.label}>商品名</Text>
+          <Text style={styles.itemName}>{item.itemName}</Text>
 
-        <Text style={styles.label}>カテゴリ</Text>
-        <Text style={styles.value}>{categoryLabel(item.category)}</Text>
+          <Text style={styles.label}>カテゴリ</Text>
+          <Text style={styles.value}>{categoryLabel(item.category)}</Text>
 
-        <Text style={styles.label}>代替品</Text>
-        {item.alternativeItemNames.length === 0 ? (
-          <Text style={styles.value}>なし</Text>
-        ) : (
-          item.alternativeItemNames.map((name, index) => (
-            <Text key={`${index}-${name}`} style={styles.value}>
-              ・{name}
-            </Text>
-          ))
-        )}
+          <Text style={styles.label}>代替品</Text>
+          {item.alternativeItemNames.length === 0 ? (
+            <Text style={styles.value}>なし</Text>
+          ) : (
+            item.alternativeItemNames.map((name, index) => (
+              <Text key={`${index}-${name}`} style={styles.value}>
+                ・{name}
+              </Text>
+            ))
+          )}
 
-        <Text style={styles.label}>距離の上限（メートル）</Text>
-        <Text style={styles.value}>
-          {item.maxDistanceMeters != null ? String(item.maxDistanceMeters) : '指定なし'}
-        </Text>
+          <Text style={styles.label}>距離の上限（メートル）</Text>
+          <Text style={styles.value}>
+            {item.maxDistanceMeters != null ? String(item.maxDistanceMeters) : '指定なし'}
+          </Text>
 
-        <Text style={styles.label}>購入する店舗</Text>
-        <Text style={styles.value}>{preferredStoreName}</Text>
+          <Text style={styles.label}>購入する店舗</Text>
+          <Text style={styles.value}>{preferredStoreName}</Text>
 
-        {item.note !== '' && (
-          <>
-            <Text style={styles.label}>備考</Text>
-            <Text style={styles.value}>{item.note}</Text>
-          </>
-        )}
+          {item.note !== '' && (
+            <>
+              <Text style={styles.label}>備考</Text>
+              <Text style={styles.value}>{item.note}</Text>
+            </>
+          )}
 
-        <Text style={styles.label}>依頼者</Text>
-        <Text style={styles.value}>{requesterName}</Text>
+          <Text style={styles.label}>依頼者</Text>
+          <Text style={styles.value}>{requesterName}</Text>
 
-        <Text style={styles.label}>期限</Text>
-        <Text style={isExpired(assignment) ? styles.expired : styles.value}>
-          {remainingLabel(assignment)}
-        </Text>
+          <Text style={styles.label}>期限</Text>
+          <Text style={isExpired(assignment) ? styles.expired : styles.value}>
+            {remainingLabel(assignment)}
+          </Text>
         </View>
       </ScrollView>
 
       <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 16) }]}>
-      {preferredStoreId !== null && (
-        <Button
-          title="ナビゲーション"
-          onPress={() => navigation.navigate('Route', { storeId: preferredStoreId })}
-          disabled={submitting}
-        />
-      )}
+        {preferredStoreId !== null && (
+          <Button
+            title="ナビゲーション"
+            onPress={() => navigation.navigate('Route', { storeId: preferredStoreId })}
+            disabled={submitting}
+          />
+        )}
 
-      {active && (
-        <>
-          <Button
-            title="購入した報告"
-            onPress={() => navigation.navigate('PurchaseReport', { initialItemId: itemId })}
-            disabled={submitting}
-          />
-          <Button
-            title="担当を辞退する"
-            color="#c00"
-            onPress={confirmCancelAssignment}
-            disabled={submitting}
-          />
-        </>
-      )}
-      <Button title="閉じる" onPress={() => navigation.goBack()} disabled={submitting} />
+        {active && (
+          <>
+            <Button
+              title="購入した報告"
+              onPress={() => navigation.navigate('PurchaseReport', { initialItemId: itemId })}
+              disabled={submitting}
+            />
+            <Button
+              title="担当を辞退する"
+              color="#c00"
+              onPress={confirmCancelAssignment}
+              disabled={submitting}
+            />
+          </>
+        )}
+        <Button title="閉じる" onPress={() => navigation.goBack()} disabled={submitting} />
       </View>
     </View>
   );

@@ -1,18 +1,14 @@
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import * as Location from 'expo-location';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Button, Pressable, ScrollView, StyleSheet, Text, TextInput, View, } from 'react-native';
 
 import { errorMessage } from '../lib/errors';
 import { formatDateTime, transportModeLabel } from '../lib/format';
 import type { MainStackParamList } from '../navigation/RootNavigator';
-import { initBackgroundLocation, startBackgroundLocation, stopBackgroundLocation, } from '../services/backgroundLocation';
-import { handleStoreEntered, startGeofenceMonitor } from '../services/geofenceMonitor';
+import { handleStoreEntered } from '../services/geofenceMonitor';
 import { busyUntilTimeFromNow, isBusy, observeMember, resolveTransportMode, transportModeExpireTime, updateMemberStatus, } from '../services/member';
 import type { MemberWithId } from '../services/member';
-import { fetchNearbyCandidates } from '../services/overpass';
-import { searchNearbyStores } from '../services/storeActions';
 import { observeStores } from '../services/store';
 import type { StoreWithId } from '../services/store';
 import { TRANSPORT_MODES } from '../types/firestore';
@@ -43,23 +39,11 @@ export default function MyStatusPage({ familyId, uid }: Props) {
   const [memberLoaded, setMemberLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [searchingStores, setSearchingStores] = useState(false);
 
   //拘束状況の入力
   const [busyLabelInput, setBusyLabelInput] = useState('');
   const [busyDurationMs, setBusyDurationMs] = useState(BUSY_DURATIONS[1].durationMs);
   const busyLabelInitialized = useRef(false);
-
-  //ジオフェンス監視の解除（テスト用）
-  const stopGeofenceMonitorRef = useRef<(() => void) | null>(null);
-
-  //画面を離れた時にジオフェンス監視を解除する
-  useEffect(() => {
-    return () => {
-      stopGeofenceMonitorRef.current?.();
-      stopGeofenceMonitorRef.current = null;
-    };
-  }, []);
 
   //自分のメンバー情報を監視する
   useEffect(() => {
@@ -185,33 +169,6 @@ export default function MyStatusPage({ familyId, uid }: Props) {
     setSubmitting(false);
   }
 
-  //位置情報の取得を開始する
-  async function handleStartLocation() {
-    try {
-      await initBackgroundLocation();
-      await startBackgroundLocation();
-
-      //移動の検知から通知まで監視する(テスト)
-      stopGeofenceMonitorRef.current?.();
-      stopGeofenceMonitorRef.current = startGeofenceMonitor(familyId, uid);
-    } catch (locationError) {
-      setError(errorMessage(locationError));
-    }
-  }
-
-  //位置情報の取得を停止する
-  async function handleStopLocation() {
-    try {
-      //ジオフェンスの監視を停止したら、位置情報の取得も停止する
-      stopGeofenceMonitorRef.current?.();
-      stopGeofenceMonitorRef.current = null;
-
-      await stopBackgroundLocation();
-    } catch (locationError) {
-      setError(errorMessage(locationError));
-    }
-  }
-
   //foodを扱う店舗への進入を模擬する
   async function handleSimulateEnter() {
     const store = stores?.find(entry => entry.categories.includes('food'));
@@ -231,57 +188,6 @@ export default function MyStatusPage({ familyId, uid }: Props) {
     } catch (simulateError) {
       setError(errorMessage(simulateError));
     }
-  }
-
-  //現在地の周辺の店舗を検索し、結果をログに出す
-  async function handleSearchNearbyStores() {
-    if (searchingStores) {
-      return;
-    }
-
-    setError(null);
-    setSearchingStores(true);
-
-    try {
-      const permission = await Location.requestForegroundPermissionsAsync();
-      if (!permission.granted) {
-        setError('位置情報の許可が必要です。');
-        setSearchingStores(false);
-        return;
-      }
-
-      const position = await Location.getCurrentPositionAsync();
-      const center = {
-        latitude: position.coords.latitude,
-        longitude: position.coords.longitude,
-      };
-      console.log('[searchNearbyStores] center', center);
-
-      //候補を取得する
-      const overpassStartedAt = Date.now();
-      const candidates = await fetchNearbyCandidates(center);
-      console.log(
-        `[fetchNearbyCandidates] ${candidates.length}件 (${Date.now() - overpassStartedAt}ms)`,
-      );
-
-      //候補にカテゴリをつける
-      const startedAt = Date.now();
-      const stores = await searchNearbyStores(familyId, center, candidates);
-      const elapsedMs = Date.now() - startedAt;
-
-      console.log(`[searchNearbyStores] ${stores.length}件 (${elapsedMs}ms)`);
-      stores.forEach((store, index) => {
-        console.log(
-          `${index + 1}. ${store.storeName} [${store.categories.join(', ')}] ` +
-            `${store.storeId} (${store.location.latitude}, ${store.location.longitude})`,
-        );
-      });
-    } catch (searchError) {
-      console.log('[searchNearbyStores] error', searchError);
-      setError(errorMessage(searchError));
-    }
-
-    setSearchingStores(false);
   }
 
   //読み込み中の表示
@@ -404,14 +310,7 @@ export default function MyStatusPage({ familyId, uid }: Props) {
           onPress={handleClearBusy}
           disabled={submitting || member.busyUntilTime === null}
         />
-        <Button title="位置監視を開始する（テスト）" onPress={handleStartLocation} />
-        <Button title="位置監視を停止する（テスト）" onPress={handleStopLocation} />
         <Button title="店舗進入を模擬する（テスト）" onPress={handleSimulateEnter} />
-        <Button
-          title={searchingStores ? '周辺の店舗を検索中…' : '周辺の店舗を検索する（テスト）'}
-          onPress={handleSearchNearbyStores}
-          disabled={searchingStores}
-        />
       </ScrollView>
 
       <Button title="閉じる" onPress={() => navigation.goBack()} disabled={submitting} />

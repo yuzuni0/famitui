@@ -6,13 +6,16 @@ const TOKEN_NOT_REGISTERED = "messaging/registration-token-not-registered";
 
 const APPROVAL_CHANNEL_ID = "approval";
 
-// 指定のメンバーへ通知を送る
+// 承諾通知に載せる値
+type ApprovalData = { itemId: string } | { itemIds: string[] };
+
+// 指定のメンバーへ承諾通知を送る
 export async function sendPushToMember(
   familyId: string,
   uid: string,
   title: string,
   body: string,
-  data?: Record<string, string>
+  data: ApprovalData
 ): Promise<void> {
   const memberRef = getFirestore()
     .collection("families").doc(familyId)
@@ -29,7 +32,7 @@ export async function sendPushToMember(
     await getMessaging().send({
       token,
       notification: { title, body },
-      data: data ?? {},
+      data: toFcmData({ kind: "approval", ...data }),
       android: {
         priority: "high",
         notification: { channelId: APPROVAL_CHANNEL_ID },
@@ -43,6 +46,15 @@ export async function sendPushToMember(
       await memberRef.update({ fcmToken: null });
     }
   }
+}
+
+// オブジェクトをJSON文字列に変換する
+function toFcmData(data: Record<string, unknown>): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(data).map(([key, value]) =>
+      [key, typeof value === "string" ? value : JSON.stringify(value)]
+    )
+  );
 }
 
 function isTokenNotRegistered(error: unknown): boolean {

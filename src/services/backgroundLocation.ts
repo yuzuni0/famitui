@@ -8,6 +8,7 @@ const TEST_DISTANCE_METERS = 3;
 const USE_TEST_DISTANCE = true;
 const GEOFENCE_RADIUS_METERS = 100;
 const MAX_GEOFENCES = 80;
+let startPromise: Promise<void> | null = null;
 
 //バックグラウンド位置情報を初期化する
 export async function initBackgroundLocation(): Promise<void> {
@@ -21,8 +22,8 @@ export async function initBackgroundLocation(): Promise<void> {
       startOnBoot: true,
     },
     logger: {
-      debug: true,
-      logLevel: BackgroundGeolocation.LogLevel.Verbose,
+      debug: false,
+      logLevel: BackgroundGeolocation.LogLevel.Off,
     },
   });
 }
@@ -40,7 +41,23 @@ export function onDistanceMoved(callback: (location: GeoPoint) => void): () => v
 
 //バックグラウンドで位置情報を取得する
 export async function startBackgroundLocation(): Promise<void> {
-  await BackgroundGeolocation.start();
+  if (startPromise !== null) {
+    //進行中・開始済みの処理を待つ
+    await startPromise;
+    return;
+  }
+  startPromise = (async () => {
+    const state = await BackgroundGeolocation.getState();
+    if (!state.enabled) {
+      await BackgroundGeolocation.start();
+    }
+  })();
+  try {
+    await startPromise;
+  } catch (error) {
+    startPromise = null;
+    throw error;
+  }
 }
 
 //バックグラウンドの位置情報取得を停止する

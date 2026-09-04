@@ -4,22 +4,13 @@ import { StyleSheet } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-import { useEffect } from 'react';
-
-import RootNavigator from './src/navigation/RootNavigator';
-import { initNotifications } from './src/services/notification';
+import RootNavigator, { navigationRef } from './src/navigation/RootNavigator';
 
 export default function App() {
-  useEffect(() => {
-    initNotifications().catch(error => {
-      console.warn('initNotifications failed', error);
-    });
-  }, []);
-
   return (
     <GestureHandlerRootView style={styles.root}>
       <SafeAreaProvider>
-        <NavigationContainer>
+        <NavigationContainer ref={navigationRef}>
           {/* 認証状態と家族グループの所属状態の監視先 */}
           <RootNavigator />
         </NavigationContainer>
