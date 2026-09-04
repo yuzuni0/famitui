@@ -1,17 +1,12 @@
 import { onCall, HttpsError } from "firebase-functions/https";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { runItemTransactionFor } from "../lib/itemTransaction";
-import { sendPushToMember } from "../lib/notify";
-import { isStringArray, requireAuth, requireString } from "../lib/request";
+import { NotifiedItem, notifyRequesters } from "../lib/notify";
+import {
+  isStringArray, requireAuth, requireString, withItemId,
+} from "../lib/request";
 
 const ASSIGNMENT_DURATION_MS = 30 * 60 * 1000;
-
-// 承諾した品目
-type ApprovedItem = {
-  itemId: string;
-  itemName: string;
-  requesterUserId: string | null;
-};
 
 // 依頼を承認して担当者を決める
 export const approveRequest = onCall(async (request) => {
@@ -25,7 +20,7 @@ export const approveRequest = onCall(async (request) => {
     );
   }
 
-  const approved: ApprovedItem[] = [];
+  const approved: NotifiedItem[] = [];
   let approverName = "";
   let failure: { itemId: string; error: unknown } | null = null;
 
@@ -53,7 +48,11 @@ export const approveRequest = onCall(async (request) => {
     }
   }
 
-  await notifyRequesters(familyId, uid, approverName, approved);
+  await notifyRequesters(familyId, uid, approved, {
+    title: "依頼が承諾されました",
+    single: (itemName) => `${approverName}さんが「${itemName}」を担当します`,
+    multiple: (count) => `${approverName}さんが${count}件の依頼を担当します`,
+  });
 
   if (failure !== null) {
     throw withItemId(failure.error, failure.itemId);
@@ -125,48 +124,4 @@ async function approveItem(
   tx.update(itemRef, {
     activeAssignmentId: assignmentId,
   });
-}
-
-// 依頼者ごとにまとめて通知する
-async function notifyRequesters(
-  familyId: string,
-  approverUid: string,
-  approverName: string,
-  approved: ApprovedItem[]
-): Promise<void> {
-  const byRequester = new Map<string, ApprovedItem[]>();
-  for (const entry of approved) {
-    const requesterUserId = entry.requesterUserId;
-    if (requesterUserId === null || requesterUserId === approverUid) {
-      continue;
-    }
-    const list = byRequester.get(requesterUserId) ?? [];
-    list.push(entry);
-    byRequester.set(requesterUserId, list);
-  }
-
-  for (const [requesterUserId, entries] of byRequester) {
-    const body = entries.length === 1 ?
-      `${approverName}さんが「${entries[0].itemName}」を担当します` :
-      `${approverName}さんが${entries.length}件の依頼を担当します`;
-    const data = entries.length === 1 ?
-      { itemId: entries[0].itemId } :
-      { itemIds: entries.map((entry) => entry.itemId) };
-
-    await sendPushToMember(
-      familyId,
-      requesterUserId,
-      "依頼が承諾されました",
-      body,
-      data
-    );
-  }
-}
-
-// エラーに品目のIDを付与する
-function withItemId(error: unknown, itemId: string): HttpsError {
-  if (error instanceof HttpsError) {
-    return new HttpsError(error.code, error.message, { itemId });
-  }
-  return new HttpsError("internal", "処理に失敗しました。", { itemId });
 }

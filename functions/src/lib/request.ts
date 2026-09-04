@@ -49,6 +49,14 @@ export function isStringArray(value: unknown): value is string[] {
     value.every((entry) => typeof entry === "string");
 }
 
+// エラーに品目のIDを付ける
+export function withItemId(error: unknown, itemId: string): HttpsError {
+  if (error instanceof HttpsError) {
+    return new HttpsError(error.code, error.message, { itemId });
+  }
+  return new HttpsError("internal", "処理に失敗しました。", { itemId });
+}
+
 // 家族グループへの所属を確認し、familyIdへの参照を返す
 export async function requireMembership(
   db: Firestore,

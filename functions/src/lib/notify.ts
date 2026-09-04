@@ -48,6 +48,50 @@ export async function sendPushToMember(
   }
 }
 
+// 依頼者へ通知する品目
+export type NotifiedItem = {
+  itemId: string;
+  itemName: string;
+  requesterUserId: string | null;
+};
+
+// 件数に応じた通知
+export type NotifyText = {
+  title: string;
+  single: (itemName: string) => string;
+  multiple: (count: number) => string;
+};
+
+// 依頼者ごとに通知を送る
+export async function notifyRequesters(
+  familyId: string,
+  senderUid: string,
+  entries: NotifiedItem[],
+  text: NotifyText
+): Promise<void> {
+  const byRequester = new Map<string, NotifiedItem[]>();
+  for (const entry of entries) {
+    const requesterUserId = entry.requesterUserId;
+    if (requesterUserId === null || requesterUserId === senderUid) {
+      continue;
+    }
+    const list = byRequester.get(requesterUserId) ?? [];
+    list.push(entry);
+    byRequester.set(requesterUserId, list);
+  }
+
+  for (const [requesterUserId, list] of byRequester) {
+    const body = list.length === 1 ?
+      text.single(list[0].itemName) :
+      text.multiple(list.length);
+    const data = list.length === 1 ?
+      { itemId: list[0].itemId } :
+      { itemIds: list.map((entry) => entry.itemId) };
+
+    await sendPushToMember(familyId, requesterUserId, text.title, body, data);
+  }
+}
+
 // オブジェクトをJSON文字列に変換する
 function toFcmData(data: Record<string, unknown>): Record<string, string> {
   return Object.fromEntries(

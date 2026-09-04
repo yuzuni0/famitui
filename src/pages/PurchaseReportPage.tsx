@@ -9,7 +9,7 @@ import { isExpired, observeMyAssignments, remainingLabel } from '../services/ass
 import type { AssignmentWithId } from '../services/assignment';
 import { observeItems } from '../services/item';
 import type { ItemWithId } from '../services/item';
-import { reportPurchase } from '../services/itemActions';
+import { failedItemId, reportPurchase } from '../services/itemActions';
 import { CATEGORIES } from '../types/firestore';
 
 //担当中の不足品の購入をまとめて報告する画面
@@ -163,7 +163,7 @@ export default function PurchaseReportPage({ familyId, uid, initialItemId }: Pro
     });
   }
 
-  //選んだ品目の購入を順に報告する
+  //選んだ品目の購入をまとめて報告する
   async function handleSubmit() {
     if (submitting) {
       return;
@@ -179,17 +179,16 @@ export default function PurchaseReportPage({ familyId, uid, initialItemId }: Pro
     setError(null);
     setSubmitting(true);
 
-    //途中で失敗した時に、成功した品目を確認する
-    for (const assigned of targets) {
-      try {
-        await reportPurchase(familyId, assigned.item.id);
-      } catch (submitError) {
-        setError(
-          `「${assigned.item.itemName}」で失敗しました。${errorMessage(submitError, 'reportPurchase')}`,
-        );
-        setSubmitting(false);
-        return;
-      }
+    try {
+      await reportPurchase(familyId, targets.map(assigned => assigned.item.id));
+    } catch (submitError) {
+      //成功した品目を除外する
+      const failedId = failedItemId(submitError);
+      const failedName = targets.find(assigned => assigned.item.id === failedId)?.item.itemName;
+      const prefix = failedName === undefined ? '' : `「${failedName}」で失敗しました。`;
+      setError(`${prefix}${errorMessage(submitError, 'reportPurchase')}`);
+      setSubmitting(false);
+      return;
     }
 
     navigation.popTo('AssignedList');

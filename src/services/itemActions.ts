@@ -45,11 +45,11 @@ export function failedItemId(error: unknown): string | null {
 }
 
 //購入を報告して依頼を完了させる
-export async function reportPurchase(familyId: string, itemId: string): Promise<void> {
-  await callFunction<ItemActionRequest, { itemId: string }>('reportPurchase', {
-    familyId,
-    itemId,
-  });
+export async function reportPurchase(familyId: string, itemIds: string[]): Promise<void> {
+  await callFunction<{ familyId: string; itemIds: string[] }, { itemIds: string[] }>(
+    'reportPurchase',
+    { familyId, itemIds },
+  );
 }
 
 //担当を辞退して依頼品へ戻す
