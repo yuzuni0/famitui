@@ -77,6 +77,8 @@ export type MemberDoc = {
   level: number;
   score: number;
   fcmToken: string | null;
+  importantRequestDate: string | null;
+  importantRequestCount: number;
 };
 
 //inviteCodesの{code}
@@ -101,6 +103,7 @@ export type ItemDoc = {
 
   requestedTime: Timestamp | null;
   requesterUserId: string | null;
+  isImportant: boolean;
 
   completedTime: Timestamp | null;
 

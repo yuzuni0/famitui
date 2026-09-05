@@ -7,10 +7,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
 import { errorMessage } from '../lib/errors';
 import { categoryLabel } from '../lib/format';
+import { importantRequestLimit } from '../lib/level';
 import type { MainStackParamList } from '../navigation/RootNavigator';
 import { createItem, deleteItem, isAssigned, isAssignedTo, isRequested, itemStateLabel, updateItem } from '../services/item';
 import type { CreateItemInput, ItemWithId } from '../services/item';
 import { cancelRequestItem, requestItem } from '../services/itemActions';
+import { observeMember } from '../services/member';
+import type { MemberWithId } from '../services/member';
 import { observeStores } from '../services/store';
 import type { StoreWithId } from '../services/store';
 import { CATEGORIES } from '../types/firestore';
@@ -34,6 +37,21 @@ const MAX_DISTANCE_METERS = 100000;
 const CLOSE_DISTANCE = 120;
 const CLOSE_VELOCITY = 1000;
 const HANDLE_HEIGHT = 28;
+const JST_OFFSET_MS = 9 * 60 * 60 * 1000;
+
+//日付を返す
+function todayJst(): string {
+  return new Date(Date.now() + JST_OFFSET_MS).toISOString().slice(0, 10);
+}
+
+//重要な依頼の残り回数を返す
+function remainingImportantRequests(member: MemberWithId): number {
+  const limit = importantRequestLimit(member.level);
+  if (member.importantRequestDate !== todayJst()) {
+    return limit;
+  }
+  return Math.max(0, limit - (member.importantRequestCount ?? 0));
+}
 
 //複数のカテゴリをまとめて表示する
 function storeCategoriesLabel(categories: CategoryId[]): string {
@@ -92,6 +110,9 @@ export default function AddMissingModal({ familyId, uid, item, onClose }: Props)
   );
   //登録済みの店舗の一覧
   const [stores, setStores] = useState<StoreWithId[] | null>(null);
+  //担当者の情報
+  const [member, setMember] = useState<MemberWithId | null>(null);
+  const [isImportant, setIsImportant] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -183,6 +204,13 @@ export default function AddMissingModal({ familyId, uid, item, onClose }: Props)
     return unsubscribe;
   }, [familyId]);
 
+  //自分のメンバー情報を監視する
+  useEffect(() => {
+    setMember(null);
+    const unsubscribe = observeMember(familyId, uid, setMember);
+    return unsubscribe;
+  }, [familyId, uid]);
+
   //StoreSearch から戻ってきた時に、選んだ店舗を受け取る
   useFocusEffect(
     useCallback(() => {
@@ -244,6 +272,19 @@ export default function AddMissingModal({ familyId, uid, item, onClose }: Props)
 
   //担当がまだ決まっていない品目だけを受け付けられる
   const acceptable = item !== null && item.status !== 'completed' && !isAssigned(item);
+
+  //重要な依頼の条件を確認する
+  const importantLimit = member === null ? 0 : importantRequestLimit(member.level);
+  const importantRemaining = member === null ? 0 : remainingImportantRequests(member);
+  const importantAvailable = importantLimit >= 1 && importantRemaining > 0;
+  let importantNote: string;
+  if (member === null) {
+    importantNote = '読み込み中…';
+  } else if (importantLimit < 1) {
+    importantNote = 'レベル3から使えます';
+  } else {
+    importantNote = `本日の残り${importantRemaining}回`;
+  }
 
   //入力欄を item の値へ戻す
   function resetForm() {
@@ -444,7 +485,8 @@ export default function AddMissingModal({ familyId, uid, item, onClose }: Props)
     setSubmitting(true);
     try {
       if (toRequested) {
-        await requestItem(familyId, item.id);
+        await requestItem(familyId, item.id, isImportant && importantAvailable);
+        setIsImportant(false);
       } else {
         await cancelRequestItem(familyId, item.id);
       }
@@ -553,6 +595,20 @@ export default function AddMissingModal({ familyId, uid, item, onClose }: Props)
 
                     <Text style={styles.label}>自動で通知する</Text>
                     <Text style={styles.value}>{item.autoNotifyEnabled ? 'する' : 'しない'}</Text>
+
+                    {switchable && !isRequested(item) && (
+                      <>
+                        <View style={styles.switchRow}>
+                          <Text style={styles.label}>重要な依頼にする</Text>
+                          <Switch
+                            value={isImportant && importantAvailable}
+                            onValueChange={setIsImportant}
+                            disabled={submitting || !importantAvailable}
+                          />
+                        </View>
+                        <Text style={styles.note}>{importantNote}</Text>
+                      </>
+                    )}
                   </>
                 ) : (
                   <>

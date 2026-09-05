@@ -1,4 +1,4 @@
-import { collection, doc, getFirestore, orderBy, query } from '@react-native-firebase/firestore';
+import { collection, doc, getDocs, getFirestore, orderBy, query } from '@react-native-firebase/firestore';
 import type { StoreDoc } from '../types/firestore';
 import { observeCollection, observeDoc } from './observe';
 import type { WithId } from './observe';
@@ -32,6 +32,15 @@ export function observeStores(
     callback,
     onError,
   );
+}
+
+//保存済みの店舗を1回読む
+export async function fetchStores(familyId: string): Promise<StoreWithId[]> {
+  const snapshot = await getDocs(storesCollectionRef(familyId));
+  return snapshot.docs.map(document => ({
+    id: document.id,
+    ...(document.data() as StoreDoc),
+  }));
 }
 
 //各店舗の変化を監視する

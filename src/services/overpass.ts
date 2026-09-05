@@ -10,7 +10,7 @@ const OVERPASS_URLS = [
 ];
 
 //検索する半径
-const SEARCH_RADIUS_METERS = 700;
+export const SEARCH_RADIUS_METERS = 700;
 
 //ジオフェンスの上限
 const MAX_STORES = 80;

@@ -58,6 +58,7 @@ export async function createItem(
     //初期値で固定するもの
     requestedTime: null,
     requesterUserId: null,
+    isImportant: false,
     completedTime: null,
     activeAssignmentId: null,
     rejectedUserIds: [],

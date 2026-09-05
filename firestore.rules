@@ -176,19 +176,22 @@ service cloud.firestore {
                'itemName', 'category', 'status',
                'alternativeItemNames', 'maxDistanceMeters', 'note',
                'autoNotifyEnabled', 'creatorUserId', 'createdTime',
-               'requestedTime', 'requesterUserId', 'completedTime',
-               'activeAssignmentId', 'rejectedUserIds', 'preferredStoreId'])
+               'requestedTime', 'requesterUserId', 'isImportant',
+               'completedTime', 'activeAssignmentId', 'rejectedUserIds',
+               'preferredStoreId'])
           && request.resource.data.keys().hasAll([
                'itemName', 'category', 'status',
                'alternativeItemNames', 'maxDistanceMeters', 'note',
                'autoNotifyEnabled', 'creatorUserId', 'createdTime',
-               'requestedTime', 'requesterUserId', 'completedTime',
-               'activeAssignmentId', 'rejectedUserIds', 'preferredStoreId'])
+               'requestedTime', 'requesterUserId', 'isImportant',
+               'completedTime', 'activeAssignmentId', 'rejectedUserIds',
+               'preferredStoreId'])
           && request.resource.data.creatorUserId == request.auth.uid
           && request.resource.data.status == 'shortage'
           && request.resource.data.createdTime == request.time
           && request.resource.data.requestedTime == null
           && request.resource.data.requesterUserId == null
+          && request.resource.data.isImportant == false
           && request.resource.data.completedTime == null
           && request.resource.data.activeAssignmentId == null
           && request.resource.data.rejectedUserIds == []

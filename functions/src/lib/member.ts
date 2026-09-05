@@ -33,5 +33,7 @@ export function initialMemberData(displayName: unknown): DocumentData {
     busyLabel: null,
     level: 1,
     score: 0,
+    importantRequestDate: null,
+    importantRequestCount: 0,
   };
 }

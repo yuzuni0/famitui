@@ -9,13 +9,18 @@ const APPROVAL_CHANNEL_ID = "approval";
 // 承諾通知に載せる値
 type ApprovalData = { itemId: string } | { itemIds: string[] };
 
-// 指定のメンバーへ承諾通知を送る
+// 通知に載せる値
+export type PushData =
+  | ({ kind: "approval" } & ApprovalData)
+  | { kind: "levelUp"; level: number };
+
+// 指定のメンバーへ通知を送る
 export async function sendPushToMember(
   familyId: string,
   uid: string,
   title: string,
   body: string,
-  data: ApprovalData
+  data: PushData
 ): Promise<void> {
   const memberRef = getFirestore()
     .collection("families").doc(familyId)
@@ -32,10 +37,13 @@ export async function sendPushToMember(
     await getMessaging().send({
       token,
       notification: { title, body },
-      data: toFcmData({ kind: "approval", ...data }),
+      data: toFcmData(data),
       android: {
         priority: "high",
-        notification: { channelId: APPROVAL_CHANNEL_ID },
+        notification: {
+          channelId: APPROVAL_CHANNEL_ID,
+          tag: `${data.kind}_${tagId(data)}_${Date.now()}`,
+        },
       },
     });
   } catch (error) {
@@ -84,12 +92,23 @@ export async function notifyRequesters(
     const body = list.length === 1 ?
       text.single(list[0].itemName) :
       text.multiple(list.length);
-    const data = list.length === 1 ?
-      { itemId: list[0].itemId } :
-      { itemIds: list.map((entry) => entry.itemId) };
+    const data: PushData = list.length === 1 ?
+      { kind: "approval", itemId: list[0].itemId } :
+      { kind: "approval", itemIds: list.map((entry) => entry.itemId) };
 
     await sendPushToMember(familyId, requesterUserId, text.title, body, data);
   }
+}
+
+// 通知のタグを生成する
+function tagId(data: PushData): string {
+  if ("itemId" in data) {
+    return data.itemId;
+  }
+  if ("itemIds" in data) {
+    return data.itemIds[0] ?? "";
+  }
+  return String(data.level);
 }
 
 // オブジェクトをJSON文字列に変換する

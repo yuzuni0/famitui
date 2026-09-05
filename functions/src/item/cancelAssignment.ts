@@ -59,7 +59,7 @@ export const cancelAssignment = onCall(async (request) => {
       requesterUserId,
       "担当が辞退されました",
       `${cancelerName}さんが「${itemName}」の担当を辞退しました`,
-      { itemId }
+      { kind: "approval", itemId }
     );
   }
 

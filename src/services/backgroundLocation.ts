@@ -5,9 +5,9 @@ import type { NearbyStore } from './storeActions';
 
 const RELOCATE_DISTANCE_METERS = 500;
 const TEST_DISTANCE_METERS = 3;
-const USE_TEST_DISTANCE = true;
-const GEOFENCE_RADIUS_METERS = 100;
-const MAX_GEOFENCES = 80;
+//パソコン甲子園提出時には必ずfalse,にしておく
+const USE_TEST_DISTANCE = false;
+export const MAX_GEOFENCES = 80;
 let startPromise: Promise<void> | null = null;
 
 //バックグラウンド位置情報を初期化する
@@ -66,12 +66,12 @@ export async function stopBackgroundLocation(): Promise<void> {
 }
 
 //店舗をジオフェンスの形式に変換する
-function toGeofence(store: NearbyStore): Geofence {
+function toGeofence(store: NearbyStore, radius: number): Geofence {
   return {
     identifier: store.storeId,
     latitude: store.location.latitude,
     longitude: store.location.longitude,
-    radius: GEOFENCE_RADIUS_METERS,
+    radius,
     notifyOnEntry: true,
     notifyOnExit: false,
     extras: { storeName: store.storeName, categories: store.categories },
@@ -79,7 +79,10 @@ function toGeofence(store: NearbyStore): Geofence {
 }
 
 //店舗を登録し直す
-export async function replaceStoreGeofences(stores: NearbyStore[]): Promise<void> {
+export async function replaceStoreGeofences(
+  stores: NearbyStore[],
+  radius: number,
+): Promise<void> {
   await BackgroundGeolocation.removeGeofences();
 
   const targets = stores.slice(0, MAX_GEOFENCES);
@@ -87,7 +90,7 @@ export async function replaceStoreGeofences(stores: NearbyStore[]): Promise<void
     return;
   }
 
-  await BackgroundGeolocation.addGeofences(targets.map(toGeofence));
+  await BackgroundGeolocation.addGeofences(targets.map(store => toGeofence(store, radius)));
 }
 
 //店舗のジオフェンスを削除する

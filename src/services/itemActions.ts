@@ -8,11 +8,15 @@ type ItemActionRequest = {
 };
 
 //不足品を依頼品へ切り替える
-export async function requestItem(familyId: string, itemId: string): Promise<void> {
-  await callFunction<ItemActionRequest, { itemId: string | null }>('requestItem', {
-    familyId,
-    itemId,
-  });
+export async function requestItem(
+  familyId: string,
+  itemId: string,
+  isImportant = false,
+): Promise<void> {
+  await callFunction<ItemActionRequest & { isImportant: boolean }, { itemId: string | null }>(
+    'requestItem',
+    { familyId, itemId, isImportant },
+  );
 }
 
 //依頼品を不足品へ戻す

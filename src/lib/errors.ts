@@ -19,9 +19,10 @@ export type ErrorScope =
   | 'getRoute';
 
 //呼び出し元ごとに共通の文言を上書きする
-const SCOPE_MESSAGES: Record<ErrorScope, Partial<Record<string, string>>> = {
+const SCOPE_MESSAGES: Record<ErrorScope, Partial<Record<string, string | null>>> = {
   requestItem: {
-    'permission-denied': 'この家族グループに所属していません。',
+    //所属状況とレベル状態でエラーを変える
+    'permission-denied': null,
     'not-found': '品目が見つかりません。',
     'failed-precondition': '既に依頼が出ているか、担当が決まっています。',
   },
@@ -65,6 +66,9 @@ export function errorMessage(error: unknown, scope?: ErrorScope): string {
   //呼び出し元の文言があればそれを使う
   if (scope !== undefined && code !== null) {
     const scopedMessage = SCOPE_MESSAGES[scope][code];
+    if (scopedMessage === null) {
+      return error instanceof Error ? error.message : String(error);
+    }
     if (scopedMessage !== undefined) {
       return scopedMessage;
     }

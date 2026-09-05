@@ -99,11 +99,13 @@ export default function FamilyStatusPage({ familyId, uid }: Props) {
 
           return (
             <View style={[styles.member, self && styles.memberSelf]}>
-              <Text style={styles.displayName}>
-                {member.displayName}
-                {self && '（自分）'}
-              </Text>
-              <Text style={styles.meta}>レベル {member.level}</Text>
+              <View style={styles.nameRow}>
+                <Text style={styles.displayName}>
+                  {member.displayName}
+                  {self && '（自分）'}
+                </Text>
+                <Text style={styles.level}>Lv.{member.level}</Text>
+              </View>
               <Text style={styles.meta}>
                 移動手段：{transportModeLabel(resolveTransportMode(member))}
               </Text>
@@ -155,9 +157,18 @@ const styles = StyleSheet.create({
     borderColor: '#06c',
     backgroundColor: '#eef4fc',
   },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   displayName: {
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  level: {
+    fontWeight: 'bold',
+    color: '#06c',
   },
   meta: {
     color: '#666',

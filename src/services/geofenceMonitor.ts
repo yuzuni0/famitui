@@ -1,13 +1,15 @@
 import { distanceMeters } from '../lib/geo';
 import type { FamilyDoc, GeoPoint } from '../types/firestore';
-import { onDistanceMoved, onGeofenceEnter, replaceStoreGeofences } from './backgroundLocation';
+import { MAX_GEOFENCES, onDistanceMoved, onGeofenceEnter, replaceStoreGeofences } from './backgroundLocation';
 import { observeFamilyDoc } from './family';
 import { fetchItems, isAssigned, isRequested } from './item';
 import type { ItemWithId } from './item';
 import { isBusy, observeMember } from './member';
 import type { MemberWithId } from './member';
 import { notifyNearbyStore } from './notification';
-import { fetchNearbyCandidates } from './overpass';
+import { SEARCH_RADIUS_METERS, fetchNearbyCandidates } from './overpass';
+import { fetchStores } from './store';
+import type { StoreWithId } from './store';
 import { searchNearbyStores } from './storeActions';
 import type { NearbyStore } from './storeActions';
 
@@ -15,6 +17,10 @@ import type { NearbyStore } from './storeActions';
 
 //同じ店舗へ再通知しない間隔
 const RENOTIFY_INTERVAL_MS = 30 * 60 * 1000;
+
+const GEOFENCE_RADIUS_METERS = 100;
+//重要な依頼時の半径
+const IMPORTANT_GEOFENCE_RADIUS_METERS = 300;
 
 let searching = false;
 
@@ -56,6 +62,23 @@ function readOnce<T>(
   });
 }
 
+//重要な依頼を確認する
+function hasImportantRequest(items: ItemWithId[]): boolean {
+  return items.some(
+    item => item.isImportant === true && isRequested(item) && !isAssigned(item),
+  );
+}
+
+//保存済みの店舗を変換する
+function toNearbyStore(store: StoreWithId): NearbyStore {
+  return {
+    storeId: store.id,
+    storeName: store.storeName,
+    location: store.location,
+    categories: store.categories,
+  };
+}
+
 //周辺の店舗を取得してジオフェンスを登録し直す
 async function handleMoved(familyId: string, location: GeoPoint): Promise<void> {
   if (searching) {
@@ -64,11 +87,31 @@ async function handleMoved(familyId: string, location: GeoPoint): Promise<void> 
 
   searching = true;
   try {
+    const items = await fetchItems(familyId);
+    const radius = hasImportantRequest(items)
+      ? IMPORTANT_GEOFENCE_RADIUS_METERS
+      : GEOFENCE_RADIUS_METERS;
+
+    //現在地付近の店舗の登録
+    const saved = await fetchStores(familyId);
+    const nearby = saved
+      .map(store => ({ store, distance: distanceMeters(location, store.location) }))
+      .filter(entry => entry.distance <= SEARCH_RADIUS_METERS)
+      .sort((a, b) => a.distance - b.distance)
+      .slice(0, MAX_GEOFENCES)
+      .map(entry => toNearbyStore(entry.store));
+    if (nearby.length > 0) {
+      await replaceStoreGeofences(nearby, radius);
+      console.log(`[geofence] 保存済みの店舗 ${nearby.length} 件で登録`);
+    }
+
+    //周辺を検索・登録する
     const candidates = await fetchNearbyCandidates(location);
     const stores = await searchNearbyStores(familyId, location, candidates);
-    await replaceStoreGeofences(stores);
+    await replaceStoreGeofences(stores, radius);
+    console.log(`[geofence] 周辺検索の結果 ${stores.length} 件で登録`);
   } catch (error) {
-    console.warn('geofenceMonitor: 店舗の更新に失敗しました', error);
+    console.warn('geofenceMonitor: 周辺検索に失敗。保存済みの店舗を維持します', error);
   } finally {
     searching = false;
   }

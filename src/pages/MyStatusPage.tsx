@@ -5,6 +5,7 @@ import { ActivityIndicator, Button, Pressable, ScrollView, StyleSheet, Text, Tex
 
 import { errorMessage } from '../lib/errors';
 import { formatDateTime, transportModeLabel } from '../lib/format';
+import { progressToNextLevel } from '../lib/level';
 import type { MainStackParamList } from '../navigation/RootNavigator';
 import { handleStoreEntered } from '../services/geofenceMonitor';
 import { busyUntilTimeFromNow, isBusy, observeMember, resolveTransportMode, transportModeExpireTime, updateMemberStatus, } from '../services/member';
@@ -213,6 +214,8 @@ export default function MyStatusPage({ familyId, uid }: Props) {
   //期限切れの場合はなしにする
   const displayedMode = resolveTransportMode(member);
 
+  const progress = progressToNextLevel(member.score);
+
   return (
     <View style={styles.container}>
       {error !== null && <Text style={styles.error}>{error}</Text>}
@@ -220,11 +223,11 @@ export default function MyStatusPage({ familyId, uid }: Props) {
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={styles.displayName}>{member.displayName}</Text>
 
-        <Text style={styles.label}>レベル</Text>
-        <Text style={styles.value}>{member.level}</Text>
-
-        <Text style={styles.label}>スコア</Text>
-        <Text style={styles.value}>{member.score}</Text>
+        <Text style={styles.levelTitle}>レベル {member.level}</Text>
+        <View style={styles.progressTrack}>
+          <View style={[styles.progressFill, { width: `${progress.ratio * 100}%` }]} />
+        </View>
+        {progress.next === null && <Text style={styles.note}>最高レベルです</Text>}
 
         <Text style={styles.label}>移動手段</Text>
         <Text style={styles.value}>{transportModeLabel(displayedMode)}</Text>
@@ -337,6 +340,22 @@ const styles = StyleSheet.create({
   displayName: {
     fontSize: 20,
     fontWeight: 'bold',
+  },
+  levelTitle: {
+    marginTop: 8,
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  progressTrack: {
+    height: 12,
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 6,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: '#06c',
   },
   label: {
     marginTop: 8,
