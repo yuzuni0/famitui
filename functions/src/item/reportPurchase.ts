@@ -31,8 +31,9 @@ export const reportPurchase = onCall(async (request) => {
 
   const reported: NotifiedItem[] = [];
   let reporterName = "";
-  let levelBefore: number | null = null;
-  let levelAfter = 1;
+  let previousLevel: number | null = null;
+  let newLevel = 1;
+  let addedScore = 0;
   let failure: { itemId: string; error: unknown } | null = null;
 
   // 品目ごとに報告する
@@ -48,13 +49,15 @@ export const reportPurchase = onCall(async (request) => {
             tx, item, familyRef, itemRef, assignmentId
           );
 
-          // スコアとレベルの更新を行う
-          const score = Number(member.score ?? 0) + scoreDelta;
+          // スコアとレベルを更新する
+          const scoreBefore = Number(member.score ?? 0);
+          const score = scoreBefore + scoreDelta;
           const level = levelForScore(score);
           tx.update(familyRef.collection("members").doc(uid), { score, level });
 
-          levelBefore ??= Number(member.level ?? 1);
-          levelAfter = level;
+          previousLevel ??= levelForScore(scoreBefore);
+          newLevel = level;
+          addedScore += scoreDelta;
           reporterName = String(member.displayName ?? "");
           reported.push({
             itemId,
@@ -76,13 +79,13 @@ export const reportPurchase = onCall(async (request) => {
   });
 
   // レベルが上がったら通知する
-  if (levelBefore !== null && levelAfter > levelBefore) {
+  if (previousLevel !== null && newLevel > previousLevel) {
     await sendPushToMember(
       familyId,
       uid,
       "レベルアップ",
-      `レベル${levelAfter}になりました`,
-      { kind: "levelUp", level: levelAfter }
+      `レベル${newLevel}になりました`,
+      { kind: "levelUp", level: newLevel }
     );
   }
 
@@ -90,7 +93,12 @@ export const reportPurchase = onCall(async (request) => {
     throw withItemId(failure.error, failure.itemId);
   }
 
-  return { itemIds: reported.map((entry) => entry.itemId) };
+  return {
+    itemIds: reported.map((entry) => entry.itemId),
+    previousLevel: previousLevel ?? newLevel,
+    newLevel,
+    addedScore,
+  };
 });
 
 // 品目を完了状態にする

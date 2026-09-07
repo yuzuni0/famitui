@@ -2,10 +2,14 @@ import { onCall, HttpsError } from "firebase-functions/https";
 import {
   DocumentData, DocumentReference, FieldValue, Transaction,
 } from "firebase-admin/firestore";
+import { isCategoryId } from "../lib/categories";
 import { runItemTransaction } from "../lib/itemTransaction";
-import { importantRequestLimit } from "../lib/level";
-
-const JST_OFFSET_MS = 9 * 60 * 60 * 1000;
+import {
+  CATEGORY_UNLOCK_LEVEL,
+  canRequestCategory,
+  importantRequestLimit,
+  todayJst,
+} from "../lib/level";
 
 // 不足品を依頼品へ切り替える
 export const requestItem = onCall(async (request) => {
@@ -33,6 +37,8 @@ export const requestItem = onCall(async (request) => {
         );
       }
 
+      requireRequestableCategory(member, item);
+
       if (isImportant) {
         useImportantRequest(
           tx, familyRef.collection("members").doc(uid), member
@@ -50,6 +56,28 @@ export const requestItem = onCall(async (request) => {
   return { itemId };
 });
 
+// 依頼可能なカテゴリかを判断する
+function requireRequestableCategory(
+  member: DocumentData,
+  item: DocumentData
+): void {
+  const category = item.category;
+  if (!isCategoryId(category)) {
+    throw new HttpsError(
+      "failed-precondition",
+      "品目のカテゴリが不正です。"
+    );
+  }
+
+  const level = Number(member.level ?? 1);
+  if (!canRequestCategory(level, category)) {
+    throw new HttpsError(
+      "permission-denied",
+      `このカテゴリはレベル${CATEGORY_UNLOCK_LEVEL[category]}から依頼できます。`
+    );
+  }
+}
+
 // 依頼品の上限を確認する
 function useImportantRequest(
   tx: Transaction,
@@ -58,7 +86,10 @@ function useImportantRequest(
 ): void {
   const limit = importantRequestLimit(Number(member.level ?? 1));
   if (limit < 1) {
-    throw new HttpsError("permission-denied", "レベルが足りません。");
+    throw new HttpsError(
+      "permission-denied",
+      "重要な依頼はレベル3から使えます。"
+    );
   }
 
   const today = todayJst();
@@ -66,16 +97,14 @@ function useImportantRequest(
     Number(member.importantRequestCount ?? 0) :
     0;
   if (count >= limit) {
-    throw new HttpsError("resource-exhausted", "本日の上限に達しました。");
+    throw new HttpsError(
+      "resource-exhausted",
+      "本日の重要な依頼の上限に達しました。"
+    );
   }
 
   tx.update(memberRef, {
     importantRequestDate: today,
     importantRequestCount: count + 1,
   });
-}
-
-// 日付の取得
-function todayJst(): string {
-  return new Date(Date.now() + JST_OFFSET_MS).toISOString().slice(0, 10);
 }

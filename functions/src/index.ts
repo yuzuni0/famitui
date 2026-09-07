@@ -18,3 +18,4 @@ export { detectItems } from "./photo/detectItems";
 export { storeCategories } from "./store/storeCategories";
 export { searchNearbyStores } from "./store/searchNearbyStores";
 export { getRoute } from "./route/getRoute";
+export { onMessageCreated } from "./chat/onMessageCreated";

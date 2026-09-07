@@ -5,16 +5,28 @@ import { logger } from "firebase-functions/v2";
 const TOKEN_NOT_REGISTERED = "messaging/registration-token-not-registered";
 
 const APPROVAL_CHANNEL_ID = "approval";
+const CHAT_CHANNEL_ID = "chat";
 
 // 承諾通知に載せる値
 type ApprovalData = { itemId: string } | { itemIds: string[] };
 
-// 通知に載せる値
+// チャットの通知の値
+export type ChatData = {
+  kind: "chat";
+  familyId: string;
+  assignmentId: string;
+  messageId: string;
+  itemName: string;
+  partnerUserId: string;
+};
+
+// レベル上昇の通知の値
 export type PushData =
   | ({ kind: "approval" } & ApprovalData)
-  | { kind: "levelUp"; level: number };
+  | { kind: "levelUp"; level: number }
+  | ChatData;
 
-// 指定のメンバーへ通知を送る
+// 指定のメンバーへ送る
 export async function sendPushToMember(
   familyId: string,
   uid: string,
@@ -41,8 +53,9 @@ export async function sendPushToMember(
       android: {
         priority: "high",
         notification: {
-          channelId: APPROVAL_CHANNEL_ID,
-          tag: `${data.kind}_${tagId(data)}_${Date.now()}`,
+          channelId: data.kind === "chat" ?
+            CHAT_CHANNEL_ID : APPROVAL_CHANNEL_ID,
+          tag: notificationTag(data),
         },
       },
     });
@@ -101,6 +114,13 @@ export async function notifyRequesters(
 }
 
 // 通知のタグを生成する
+function notificationTag(data: PushData): string {
+  if (data.kind === "chat") {
+    return `chat_${data.assignmentId}_${data.messageId}`;
+  }
+  return `${data.kind}_${tagId(data)}_${Date.now()}`;
+}
+
 function tagId(data: PushData): string {
   if ("itemId" in data) {
     return data.itemId;
@@ -108,7 +128,10 @@ function tagId(data: PushData): string {
   if ("itemIds" in data) {
     return data.itemIds[0] ?? "";
   }
-  return String(data.level);
+  if ("level" in data) {
+    return String(data.level);
+  }
+  return "";
 }
 
 // オブジェクトをJSON文字列に変換する
