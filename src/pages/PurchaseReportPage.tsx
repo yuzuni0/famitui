@@ -1,7 +1,7 @@
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Button, Pressable, SectionList, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Button, Pressable, SectionList, StyleSheet, Text, View } from 'react-native';
 
 import { errorMessage } from '../lib/errors';
 import type { MainStackParamList } from '../navigation/RootNavigator';
@@ -179,8 +179,9 @@ export default function PurchaseReportPage({ familyId, uid, initialItemId }: Pro
     setError(null);
     setSubmitting(true);
 
+    let result;
     try {
-      await reportPurchase(familyId, targets.map(assigned => assigned.item.id));
+      result = await reportPurchase(familyId, targets.map(assigned => assigned.item.id));
     } catch (submitError) {
       //成功した品目を除外する
       const failedId = failedItemId(submitError);
@@ -191,6 +192,14 @@ export default function PurchaseReportPage({ familyId, uid, initialItemId }: Pro
       return;
     }
 
+    //レベルアップ画面への遷移
+    const { previousLevel, newLevel, addedScore } = result;
+    if (newLevel > previousLevel) {
+      navigation.replace('LevelUp', { previousLevel, newLevel, addedScore });
+      return;
+    }
+
+    Alert.alert('報告しました', `スコア +${addedScore}`);
     navigation.popTo('AssignedList');
   }
 

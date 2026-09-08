@@ -27,7 +27,7 @@ const SCOPE_MESSAGES: Record<ErrorScope, Partial<Record<string, string | null>>>
     'failed-precondition': '既に依頼が出ているか、担当が決まっています。',
   },
   cancelRequestItem: {
-    'permission-denied': 'この家族グループに所属していません。',
+    'permission-denied': null,
     'not-found': '品目が見つかりません。',
     'failed-precondition': '依頼が出ていないか、既に担当が決まっています。',
   },

@@ -8,20 +8,35 @@ const NEARBY_CHANNEL_ID = 'nearby_2';
 
 const APPROVAL_CHANNEL_ID = 'approval';
 
+const CHAT_CHANNEL_ID = 'chat';
+
 export type NotificationData =
   | { kind: 'nearbyStore'; storeId: string; itemIds: string[] }
-  | { kind: 'approval'; itemId: string };
+  | { kind: 'approval'; itemId: string }
+  | { kind: 'chat'; familyId: string; assignmentId: string; itemName: string; partnerUserId: string };
+
+let openChatAssignmentId: string | null = null;
+
+export function setOpenChatAssignmentId(assignmentId: string | null): void {
+  openChatAssignmentId = assignmentId;
+}
 
 // 通知の初期化
 export async function initNotifications(): Promise<void> {
   //通知を前面に表示する
   Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-      shouldShowBanner: true,
-      shouldShowList: true,
-      shouldPlaySound: true,
-      shouldSetBadge: false,
-    }),
+    handleNotification: async notification => {
+      const data = parseNotificationData(notification.request.content.data);
+      //通知を非表示時限定にする
+      const suppress =
+        data?.kind === 'chat' && openChatAssignmentId === data.assignmentId;
+      return {
+        shouldShowBanner: !suppress,
+        shouldShowList: !suppress,
+        shouldPlaySound: !suppress,
+        shouldSetBadge: false,
+      };
+    },
   });
 
   // 通知のチャンネルの作成
@@ -32,6 +47,10 @@ export async function initNotifications(): Promise<void> {
     });
     await Notifications.setNotificationChannelAsync(APPROVAL_CHANNEL_ID, {
       name: '依頼の承諾',
+      importance: Notifications.AndroidImportance.HIGH,
+    });
+    await Notifications.setNotificationChannelAsync(CHAT_CHANNEL_ID, {
+      name: 'チャット',
       importance: Notifications.AndroidImportance.HIGH,
     });
   }
@@ -81,6 +100,19 @@ export function parseNotificationData(data: unknown): NotificationData | null {
       return null;
     }
     return { kind: 'approval', itemId };
+  }
+
+  if (record.kind === 'chat') {
+    const { familyId, assignmentId, itemName, partnerUserId } = record;
+    if (
+      typeof familyId !== 'string' ||
+      typeof assignmentId !== 'string' ||
+      typeof itemName !== 'string' ||
+      typeof partnerUserId !== 'string'
+    ) {
+      return null;
+    }
+    return { kind: 'chat', familyId, assignmentId, itemName, partnerUserId };
   }
 
   return null;

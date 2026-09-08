@@ -211,8 +211,10 @@ export default function TaskDetailPage({ familyId, uid, itemId }: Props) {
   //担当として有効化を確認する
   const active = assignment.status === 'active';
 
-  //ナビゲーションで向かう店舗。条件の中では string に絞り込めないため変数に取り出す
+  //ナビゲーションで向かう店舗
   const preferredStoreId = item.preferredStoreId;
+  //チャットの相手
+  const requesterUserId = item.requesterUserId;
 
   return (
     <View style={styles.container}>
@@ -286,6 +288,20 @@ export default function TaskDetailPage({ familyId, uid, itemId }: Props) {
 
         {active && (
           <>
+            {requesterUserId !== null && (
+              <Button
+                title="チャット"
+                onPress={() =>
+                  navigation.navigate('Chat', {
+                    familyId,
+                    assignmentId,
+                    itemName: item.itemName,
+                    partnerUserId: requesterUserId,
+                  })
+                }
+                disabled={submitting}
+              />
+            )}
             <Button
               title="購入した報告"
               onPress={() => navigation.navigate('PurchaseReport', { initialItemId: itemId })}

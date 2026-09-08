@@ -48,12 +48,32 @@ export function failedItemId(error: unknown): string | null {
   return typeof itemId === 'string' ? itemId : null;
 }
 
+//購入報告の結果
+export type PurchaseReportResult = {
+  itemIds: string[];
+  previousLevel: number;
+  newLevel: number;
+  addedScore: number;
+};
+
 //購入を報告して依頼を完了させる
-export async function reportPurchase(familyId: string, itemIds: string[]): Promise<void> {
-  await callFunction<{ familyId: string; itemIds: string[] }, { itemIds: string[] }>(
+export async function reportPurchase(
+  familyId: string,
+  itemIds: string[],
+): Promise<PurchaseReportResult> {
+  const result = await callFunction<{ familyId: string; itemIds: string[] }, PurchaseReportResult>(
     'reportPurchase',
     { familyId, itemIds },
   );
+  console.log('[itemActions] reportPurchase 応答', result);
+
+  //旧バージョンの Functions が返す応答にも耐えられるよう数値に揃える
+  return {
+    itemIds: result.itemIds ?? itemIds,
+    previousLevel: Number(result.previousLevel ?? 0),
+    newLevel: Number(result.newLevel ?? 0),
+    addedScore: Number(result.addedScore ?? 0),
+  };
 }
 
 //担当を辞退して依頼品へ戻す

@@ -7,7 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
 import { errorMessage } from '../lib/errors';
 import { categoryLabel } from '../lib/format';
-import { importantRequestLimit } from '../lib/level';
+import { CATEGORY_UNLOCK_LEVEL, canRequestCategory, importantRequestLimit, todayJst } from '../lib/level';
 import type { MainStackParamList } from '../navigation/RootNavigator';
 import { createItem, deleteItem, isAssigned, isAssignedTo, isRequested, itemStateLabel, updateItem } from '../services/item';
 import type { CreateItemInput, ItemWithId } from '../services/item';
@@ -37,12 +37,6 @@ const MAX_DISTANCE_METERS = 100000;
 const CLOSE_DISTANCE = 120;
 const CLOSE_VELOCITY = 1000;
 const HANDLE_HEIGHT = 28;
-const JST_OFFSET_MS = 9 * 60 * 60 * 1000;
-
-//日付を返す
-function todayJst(): string {
-  return new Date(Date.now() + JST_OFFSET_MS).toISOString().slice(0, 10);
-}
 
 //重要な依頼の残り回数を返す
 function remainingImportantRequests(member: MemberWithId): number {
@@ -273,18 +267,33 @@ export default function AddMissingModal({ familyId, uid, item, onClose }: Props)
   //担当がまだ決まっていない品目だけを受け付けられる
   const acceptable = item !== null && item.status !== 'completed' && !isAssigned(item);
 
+  //依頼者は担当者とチャットができる
+  const chattable =
+    item !== null && item.status !== 'completed' && isAssigned(item) && item.requesterUserId === uid;
+
   //重要な依頼の条件を確認する
   const importantLimit = member === null ? 0 : importantRequestLimit(member.level);
   const importantRemaining = member === null ? 0 : remainingImportantRequests(member);
   const importantAvailable = importantLimit >= 1 && importantRemaining > 0;
+  const importantSelected = isImportant && importantAvailable;
   let importantNote: string;
   if (member === null) {
     importantNote = '読み込み中…';
   } else if (importantLimit < 1) {
     importantNote = 'レベル3から使えます';
+  } else if (importantRemaining < 1) {
+    importantNote = '本日の上限に達しました';
   } else {
     importantNote = `本日の残り${importantRemaining}回`;
   }
+
+  //依頼可能なカテゴリかを判定する
+  const categoryRequestable =
+    member !== null && item !== null && canRequestCategory(member.level, item.category);
+  const categoryNote =
+    member !== null && item !== null && !categoryRequestable
+      ? `このカテゴリはレベル${CATEGORY_UNLOCK_LEVEL[item.category]}から依頼できます`
+      : null;
 
   //入力欄を item の値へ戻す
   function resetForm() {
@@ -485,7 +494,7 @@ export default function AddMissingModal({ familyId, uid, item, onClose }: Props)
     setSubmitting(true);
     try {
       if (toRequested) {
-        await requestItem(familyId, item.id, isImportant && importantAvailable);
+        await requestItem(familyId, item.id, importantSelected);
         setIsImportant(false);
       } else {
         await cancelRequestItem(familyId, item.id);
@@ -495,6 +504,22 @@ export default function AddMissingModal({ familyId, uid, item, onClose }: Props)
     } finally {
       setSubmitting(false);
     }
+  }
+
+  //担当者とのチャット画面へ移る
+  function handleOpenChat() {
+    if (item === null || item.activeAssignmentId === null || submitting) {
+      return;
+    }
+
+    const assignmentId = item.activeAssignmentId;
+    navigation.navigate('Chat', {
+      familyId,
+      assignmentId,
+      itemName: item.itemName,
+      //assignmentId は {itemId}_{uid} の形
+      partnerUserId: assignmentId.slice(assignmentId.indexOf('_') + 1),
+    });
   }
 
   //他の品目も併せて選ぶ画面へ移る
@@ -555,6 +580,12 @@ export default function AddMissingModal({ familyId, uid, item, onClose }: Props)
                       </Text>
                     )}
 
+                    {item.isImportant && (
+                      <View style={styles.importantBadge}>
+                        <Text style={styles.importantBadgeText}>重要</Text>
+                      </View>
+                    )}
+
                     <Text style={styles.label}>商品名</Text>
                     <Text style={styles.value}>{item.itemName}</Text>
 
@@ -595,20 +626,6 @@ export default function AddMissingModal({ familyId, uid, item, onClose }: Props)
 
                     <Text style={styles.label}>自動で通知する</Text>
                     <Text style={styles.value}>{item.autoNotifyEnabled ? 'する' : 'しない'}</Text>
-
-                    {switchable && !isRequested(item) && (
-                      <>
-                        <View style={styles.switchRow}>
-                          <Text style={styles.label}>重要な依頼にする</Text>
-                          <Switch
-                            value={isImportant && importantAvailable}
-                            onValueChange={setIsImportant}
-                            disabled={submitting || !importantAvailable}
-                          />
-                        </View>
-                        <Text style={styles.note}>{importantNote}</Text>
-                      </>
-                    )}
                   </>
                 ) : (
                   <>
@@ -760,7 +777,26 @@ export default function AddMissingModal({ familyId, uid, item, onClose }: Props)
                         disabled={submitting}
                       />
                     )}
-                    {switchable && (
+                    {chattable && (
+                      <Button title="チャット" onPress={handleOpenChat} disabled={submitting} />
+                    )}
+                    {switchable && !isRequested(item) && categoryRequestable && (
+                      <>
+                        <View style={styles.switchRow}>
+                          <Text style={styles.label}>重要な依頼にする</Text>
+                          <Switch
+                            value={importantSelected}
+                            onValueChange={setIsImportant}
+                            disabled={submitting || !importantAvailable}
+                          />
+                        </View>
+                        <Text style={styles.note}>{importantNote}</Text>
+                      </>
+                    )}
+                    {switchable && !isRequested(item) && categoryNote !== null && (
+                      <Text style={styles.note}>{categoryNote}</Text>
+                    )}
+                    {switchable && (isRequested(item) || categoryRequestable) && (
                       <Button
                         title={isRequested(item) ? '依頼を取り下げる' : '依頼する'}
                         onPress={handleSwitchStatus}
@@ -886,6 +922,18 @@ const styles = StyleSheet.create({
   },
   note: {
     color: '#666',
+  },
+  importantBadge: {
+    alignSelf: 'flex-start',
+    borderRadius: 4,
+    paddingVertical: 2,
+    paddingHorizontal: 8,
+    backgroundColor: '#c00',
+  },
+  importantBadgeText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: 'bold',
   },
   errorBanner: {
     backgroundColor: '#fdecec',

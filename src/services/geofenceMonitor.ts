@@ -1,6 +1,6 @@
 import { distanceMeters } from '../lib/geo';
 import type { FamilyDoc, GeoPoint } from '../types/firestore';
-import { MAX_GEOFENCES, onDistanceMoved, onGeofenceEnter, replaceStoreGeofences } from './backgroundLocation';
+import { GEOFENCE_RADIUS_METERS, IMPORTANT_GEOFENCE_RADIUS_METERS, MAX_GEOFENCES, onDistanceMoved, onGeofenceEnter, replaceStoreGeofences, } from './backgroundLocation';
 import { observeFamilyDoc } from './family';
 import { fetchItems, isAssigned, isRequested } from './item';
 import type { ItemWithId } from './item';
@@ -17,10 +17,6 @@ import type { NearbyStore } from './storeActions';
 
 //同じ店舗へ再通知しない間隔
 const RENOTIFY_INTERVAL_MS = 30 * 60 * 1000;
-
-const GEOFENCE_RADIUS_METERS = 100;
-//重要な依頼時の半径
-const IMPORTANT_GEOFENCE_RADIUS_METERS = 300;
 
 let searching = false;
 
@@ -65,7 +61,11 @@ function readOnce<T>(
 //重要な依頼を確認する
 function hasImportantRequest(items: ItemWithId[]): boolean {
   return items.some(
-    item => item.isImportant === true && isRequested(item) && !isAssigned(item),
+    item =>
+      item.isImportant === true &&
+      isRequested(item) &&
+      !isAssigned(item) &&
+      item.status !== 'completed',
   );
 }
 

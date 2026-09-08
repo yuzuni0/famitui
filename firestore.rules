@@ -215,8 +215,9 @@ service cloud.firestore {
                'itemName', 'category', 'status',
                'alternativeItemNames', 'maxDistanceMeters', 'note',
                'autoNotifyEnabled', 'creatorUserId', 'createdTime',
-               'requestedTime', 'requesterUserId', 'completedTime',
-               'activeAssignmentId', 'rejectedUserIds', 'preferredStoreId'])
+               'requestedTime', 'requesterUserId', 'isImportant',
+               'completedTime', 'activeAssignmentId', 'rejectedUserIds',
+               'preferredStoreId'])
           && validItemName(request.resource.data.itemName)
           && validCategory(request.resource.data.category)
           && validNote(request.resource.data.note)
@@ -243,6 +244,29 @@ service cloud.firestore {
       match /assignments/{assignmentId} {
         allow read: if isMember(familyId);
         allow write: if false;
+
+        //割り当ての状態変更
+        match /messages/{messageId} {
+          allow read: if isMember(familyId);
+
+          allow create: if isMember(familyId)
+            && request.resource.data.keys().hasOnly([
+                 'senderUserId', 'bodyText', 'messageType',
+                 'proposalValue', 'sentTime'])
+            && request.resource.data.keys().hasAll([
+                 'senderUserId', 'bodyText', 'messageType',
+                 'proposalValue', 'sentTime'])
+            && request.resource.data.senderUserId == request.auth.uid
+            && request.resource.data.sentTime == request.time
+            && request.resource.data.messageType in [
+                 'text', 'alternativeProposal', 'timeChangeProposal']
+            && request.resource.data.bodyText is string
+            && request.resource.data.bodyText.size() <= 500
+            && (request.resource.data.proposalValue == null
+                || request.resource.data.proposalValue is string);
+
+          allow update, delete: if false;
+        }
       }
 
       //在庫の基準(stockStandards)

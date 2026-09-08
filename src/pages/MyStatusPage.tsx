@@ -228,6 +228,11 @@ export default function MyStatusPage({ familyId, uid }: Props) {
           <View style={[styles.progressFill, { width: `${progress.ratio * 100}%` }]} />
         </View>
         {progress.next === null && <Text style={styles.note}>最高レベルです</Text>}
+        <Button
+          title="依頼できるカテゴリを見る"
+          onPress={() => navigation.navigate('RequestableItems')}
+          disabled={submitting}
+        />
 
         <Text style={styles.label}>移動手段</Text>
         <Text style={styles.value}>{transportModeLabel(displayedMode)}</Text>

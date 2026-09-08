@@ -7,16 +7,19 @@ import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import AcceptRequestPage from '../pages/AcceptRequestPage';
 import AssignedListPage from '../pages/AssignedListPage';
 import CameraPage from '../pages/CameraPage';
+import ChatPage from '../pages/ChatPage';
 import DetectionResultPage from '../pages/DetectionResultPage';
 import FamilySetupPage from '../pages/FamilySetupPage';
 import FamilyStatusPage from '../pages/FamilyStatusPage';
 import HomeLocationPage from '../pages/HomeLocationPage';
 import HomePage from '../pages/HomePage';
 import ItemListPage from '../pages/ItemListPage';
+import LevelUpPage from '../pages/LevelUpPage';
 import LoginPage from '../pages/LoginPage';
 import MyStatusPage from '../pages/MyStatusPage';
 import ProfileSetupPage from '../pages/ProfileSetupPage';
 import PurchaseReportPage from '../pages/PurchaseReportPage';
+import RequestableItemsPage from '../pages/RequestableItemsPage';
 import RoutePage from '../pages/RoutePage';
 import SignUpPage from '../pages/SignUpPage';
 import StoreSearchPage from '../pages/StoreSearchPage';
@@ -57,12 +60,15 @@ export type MainStackParamList = {
   AssignmentDetail: { itemId: string };
   Route: { storeId: string };
   PurchaseReport: { initialItemId: string };
+  LevelUp: { previousLevel: number; newLevel: number; addedScore: number };
   MyStatus: undefined;
+  RequestableItems: undefined;
   FamilyStatus: undefined;
   HomeLocation: undefined;
   StoreSearch: undefined;
   Camera: { mode: CameraMode };
   DetectionResult: { storagePath: string; mode: CameraMode };
+  Chat: { familyId: string; assignmentId: string; itemName: string; partnerUserId: string };
 };
 
 const AuthStack = createNativeStackNavigator<AuthStackParamList>();
@@ -187,6 +193,14 @@ export default function RootNavigator() {
     setPendingNotification(null);
     if (pendingNotification.kind === 'nearbyStore') {
       navigationRef.navigate('AcceptRequest', { initialItemId: pendingNotification.itemIds[0] });
+    } else if (pendingNotification.kind === 'chat') {
+      const { assignmentId, itemName, partnerUserId } = pendingNotification;
+      navigationRef.navigate('Chat', {
+        familyId,
+        assignmentId,
+        itemName,
+        partnerUserId,
+      });
     } else {
       navigationRef.navigate('ItemList');
     }
@@ -267,8 +281,23 @@ export default function RootNavigator() {
           />
         )}
       </MainStack.Screen>
+      <MainStack.Screen
+        name="LevelUp"
+        options={{ title: 'レベルアップ', headerBackVisible: false, gestureEnabled: false }}
+      >
+        {({ route }) => (
+          <LevelUpPage
+            previousLevel={route.params.previousLevel}
+            newLevel={route.params.newLevel}
+            addedScore={route.params.addedScore}
+          />
+        )}
+      </MainStack.Screen>
       <MainStack.Screen name="MyStatus" options={{ title: '自分の状態' }}>
         {() => <MyStatusPage familyId={familyId} uid={uid} />}
+      </MainStack.Screen>
+      <MainStack.Screen name="RequestableItems" options={{ title: '依頼できるカテゴリ' }}>
+        {() => <RequestableItemsPage familyId={familyId} uid={uid} />}
       </MainStack.Screen>
       <MainStack.Screen name="FamilyStatus" options={{ title: '家族の状態' }}>
         {() => <FamilyStatusPage familyId={familyId} uid={uid} />}
@@ -291,6 +320,17 @@ export default function RootNavigator() {
             uid={uid}
             storagePath={route.params.storagePath}
             mode={route.params.mode}
+          />
+        )}
+      </MainStack.Screen>
+      <MainStack.Screen name="Chat">
+        {({ route }) => (
+          <ChatPage
+            familyId={route.params.familyId}
+            uid={uid}
+            assignmentId={route.params.assignmentId}
+            itemName={route.params.itemName}
+            partnerUserId={route.params.partnerUserId}
           />
         )}
       </MainStack.Screen>

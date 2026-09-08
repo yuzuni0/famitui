@@ -8,6 +8,9 @@ const TEST_DISTANCE_METERS = 3;
 //パソコン甲子園提出時には必ずfalse,にしておく
 const USE_TEST_DISTANCE = false;
 export const MAX_GEOFENCES = 80;
+export const GEOFENCE_RADIUS_METERS = 100;
+//重要な依頼時の半径
+export const IMPORTANT_GEOFENCE_RADIUS_METERS = 300;
 let startPromise: Promise<void> | null = null;
 
 //バックグラウンド位置情報を初期化する

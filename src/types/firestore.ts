@@ -15,6 +15,9 @@ export type ReportMethod = 'manual' | 'payment';
 //撮影の目的
 export type CameraMode = 'baseline' | 'detect';
 
+//メッセージの種類
+export type MessageType = 'text' | 'alternativeProposal' | 'timeChangeProposal';
+
 //カテゴリ
 
 //Firestore のコレクションではなく定数として保持する
@@ -136,6 +139,16 @@ export type AssignmentDoc = {
   completedTime: Timestamp | null;
 
   reportMethod: ReportMethod | null;
+};
+
+//メッセージに含むデータ
+export type MessageDoc = {
+  senderUserId: string;
+  bodyText: string;
+  messageType: MessageType;
+  //提案の内容
+  proposalValue: string | null;
+  sentTime: Timestamp;
 };
 
 export type StandardLabel = {

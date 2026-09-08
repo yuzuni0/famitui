@@ -130,7 +130,14 @@ export default function ItemListPage({ familyId, uid }: Props) {
             style={({ pressed }) => [styles.item, pressed && styles.itemPressed]}
             onPress={() => handlePressItem(item)}
           >
-            <Text style={styles.itemName}>{item.itemName}</Text>
+            <View style={styles.itemHeader}>
+              <Text style={styles.itemName}>{item.itemName}</Text>
+              {item.isImportant && (
+                <View style={styles.importantBadge}>
+                  <Text style={styles.importantBadgeText}>重要</Text>
+                </View>
+              )}
+            </View>
             <Text style={styles.meta}>{itemStateLabel(item)}</Text>
             {item.note !== '' && <Text style={styles.note}>{item.note}</Text>}
           </Pressable>
@@ -227,10 +234,27 @@ const styles = StyleSheet.create({
   itemPressed: {
     opacity: 0.7,
   },
+  itemHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   itemName: {
+    flexShrink: 1,
     fontSize: 16,
     fontWeight: 'bold',
     color: '#111827',
+  },
+  importantBadge: {
+    borderRadius: 4,
+    paddingVertical: 2,
+    paddingHorizontal: 8,
+    backgroundColor: '#c00',
+  },
+  importantBadgeText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: 'bold',
   },
   meta: {
     color: '#6b7280',
