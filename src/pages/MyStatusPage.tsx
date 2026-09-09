@@ -1,8 +1,9 @@
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Button, Pressable, ScrollView, StyleSheet, Text, TextInput, View, } from 'react-native';
 
+import { isPermissionGranted, openSettings } from '../../modules/paymentNotification';
 import { errorMessage } from '../lib/errors';
 import { formatDateTime, transportModeLabel } from '../lib/format';
 import { progressToNextLevel } from '../lib/level';
@@ -45,6 +46,16 @@ export default function MyStatusPage({ familyId, uid }: Props) {
   const [busyLabelInput, setBusyLabelInput] = useState('');
   const [busyDurationMs, setBusyDurationMs] = useState(BUSY_DURATIONS[1].durationMs);
   const busyLabelInitialized = useRef(false);
+
+  //決済通知の許可状態
+  const [granted, setGranted] = useState(false);
+
+  //設定画面からの反映
+  useFocusEffect(
+    useCallback(() => {
+      setGranted(isPermissionGranted());
+    }, []),
+  );
 
   //自分のメンバー情報を監視する
   useEffect(() => {
@@ -318,6 +329,12 @@ export default function MyStatusPage({ familyId, uid }: Props) {
           onPress={handleClearBusy}
           disabled={submitting || member.busyUntilTime === null}
         />
+
+        <Text style={styles.label}>決済通知から購入報告を受け取る</Text>
+        <Text style={styles.value}>{granted ? '許可済み' : '未許可'}</Text>
+        <Text style={styles.note}>PayPay・Suica の決済通知を検知し、購入報告をワンタップで行えます</Text>
+        {!granted && <Button title="設定を開く" onPress={openSettings} />}
+
         <Button title="店舗進入を模擬する（テスト）" onPress={handleSimulateEnter} />
       </ScrollView>
 

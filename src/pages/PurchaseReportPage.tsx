@@ -1,7 +1,7 @@
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Button, Pressable, SectionList, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Button, Pressable, SectionList, StyleSheet, Text, View } from 'react-native';
 
 import { errorMessage } from '../lib/errors';
 import type { MainStackParamList } from '../navigation/RootNavigator';
@@ -199,7 +199,6 @@ export default function PurchaseReportPage({ familyId, uid, initialItemId }: Pro
       return;
     }
 
-    Alert.alert('報告しました', `スコア +${addedScore}`);
     navigation.popTo('AssignedList');
   }
 

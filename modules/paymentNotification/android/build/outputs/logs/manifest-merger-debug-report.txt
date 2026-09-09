@@ -1,0 +1,34 @@
+-- Merging decision tree log ---
+manifest
+ADDED from /Users/motegitakama/famitui/modules/paymentNotification/android/src/main/AndroidManifest.xml:1:1-13:12
+INJECTED from /Users/motegitakama/famitui/modules/paymentNotification/android/src/main/AndroidManifest.xml:1:1-13:12
+	package
+		INJECTED from /Users/motegitakama/famitui/modules/paymentNotification/android/src/main/AndroidManifest.xml
+	xmlns:android
+		ADDED from /Users/motegitakama/famitui/modules/paymentNotification/android/src/main/AndroidManifest.xml:1:11-69
+application
+ADDED from /Users/motegitakama/famitui/modules/paymentNotification/android/src/main/AndroidManifest.xml:2:3-12:17
+service#expo.modules.paymentnotification.PaymentNotificationService
+ADDED from /Users/motegitakama/famitui/modules/paymentNotification/android/src/main/AndroidManifest.xml:3:5-11:15
+	android:label
+		ADDED from /Users/motegitakama/famitui/modules/paymentNotification/android/src/main/AndroidManifest.xml:5:7-28
+	android:exported
+		ADDED from /Users/motegitakama/famitui/modules/paymentNotification/android/src/main/AndroidManifest.xml:6:7-30
+	android:permission
+		ADDED from /Users/motegitakama/famitui/modules/paymentNotification/android/src/main/AndroidManifest.xml:7:7-81
+	android:name
+		ADDED from /Users/motegitakama/famitui/modules/paymentNotification/android/src/main/AndroidManifest.xml:4:7-49
+intent-filter#action:name:android.service.notification.NotificationListenerService
+ADDED from /Users/motegitakama/famitui/modules/paymentNotification/android/src/main/AndroidManifest.xml:8:7-10:23
+action#android.service.notification.NotificationListenerService
+ADDED from /Users/motegitakama/famitui/modules/paymentNotification/android/src/main/AndroidManifest.xml:9:9-91
+	android:name
+		ADDED from /Users/motegitakama/famitui/modules/paymentNotification/android/src/main/AndroidManifest.xml:9:17-88
+uses-sdk
+INJECTED from /Users/motegitakama/famitui/modules/paymentNotification/android/src/main/AndroidManifest.xml reason: use-sdk injection requested
+INJECTED from /Users/motegitakama/famitui/modules/paymentNotification/android/src/main/AndroidManifest.xml
+INJECTED from /Users/motegitakama/famitui/modules/paymentNotification/android/src/main/AndroidManifest.xml
+	android:targetSdkVersion
+		INJECTED from /Users/motegitakama/famitui/modules/paymentNotification/android/src/main/AndroidManifest.xml
+	android:minSdkVersion
+		INJECTED from /Users/motegitakama/famitui/modules/paymentNotification/android/src/main/AndroidManifest.xml

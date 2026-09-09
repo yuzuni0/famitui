@@ -2,7 +2,7 @@ import { createNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import * as Notifications from 'expo-notifications';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, AppState, StyleSheet, View } from 'react-native';
 
 import AcceptRequestPage from '../pages/AcceptRequestPage';
 import AssignedListPage from '../pages/AssignedListPage';
@@ -18,6 +18,7 @@ import LevelUpPage from '../pages/LevelUpPage';
 import LoginPage from '../pages/LoginPage';
 import MyStatusPage from '../pages/MyStatusPage';
 import ProfileSetupPage from '../pages/ProfileSetupPage';
+import PurchaseConfirmPage from '../pages/PurchaseConfirmPage';
 import PurchaseReportPage from '../pages/PurchaseReportPage';
 import RequestableItemsPage from '../pages/RequestableItemsPage';
 import RoutePage from '../pages/RoutePage';
@@ -29,6 +30,7 @@ import { initBackgroundLocation, startBackgroundLocation, stopBackgroundLocation
 import { startGeofenceMonitor } from '../services/geofenceMonitor';
 import { initNotifications, parseNotificationData } from '../services/notification';
 import type { NotificationData } from '../services/notification';
+import { shouldOpenPurchaseConfirm } from '../services/paymentConfirm';
 import { registerFcmToken } from '../services/pushToken';
 import { observeUserDoc } from '../services/user';
 import type { UserDocSnapshot } from '../services/user';
@@ -60,6 +62,7 @@ export type MainStackParamList = {
   AssignmentDetail: { itemId: string };
   Route: { storeId: string };
   PurchaseReport: { initialItemId: string };
+  PurchaseConfirm: undefined;
   LevelUp: { previousLevel: number; newLevel: number; addedScore: number };
   MyStatus: undefined;
   RequestableItems: undefined;
@@ -206,6 +209,43 @@ export default function RootNavigator() {
     }
   }, [familyId, pendingNotification]);
 
+  //決済通知を元に遷移する
+  useEffect(() => {
+    if (uid === null || familyId === null) {
+      return;
+    }
+
+    let cancelled = false;
+    const check = async () => {
+      if (!navigationRef.isReady() || navigationRef.getCurrentRoute()?.name === 'PurchaseConfirm') {
+        return;
+      }
+      try {
+        const shouldOpen = await shouldOpenPurchaseConfirm(familyId, uid);
+        if (!cancelled && shouldOpen) {
+          navigationRef.navigate('PurchaseConfirm');
+        }
+      } catch (error) {
+        console.warn('[RootNavigator] shouldOpenPurchaseConfirm 失敗', error);
+      }
+    };
+
+    //起動時と通知タップの起動時
+    check();
+
+    
+    const subscription = AppState.addEventListener('change', state => {
+      if (state === 'active') {
+        check();
+      }
+    });
+
+    return () => {
+      cancelled = true;
+      subscription.remove();
+    };
+  }, [uid, familyId]);
+
   if (initializing) {
     return <LoadingScreen />;
   }
@@ -280,6 +320,9 @@ export default function RootNavigator() {
             initialItemId={route.params.initialItemId}
           />
         )}
+      </MainStack.Screen>
+      <MainStack.Screen name="PurchaseConfirm" options={{ title: '購入の確認' }}>
+        {() => <PurchaseConfirmPage familyId={familyId} uid={uid} />}
       </MainStack.Screen>
       <MainStack.Screen
         name="LevelUp"

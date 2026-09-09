@@ -11,7 +11,6 @@ export default function App() {
     <GestureHandlerRootView style={styles.root}>
       <SafeAreaProvider>
         <NavigationContainer ref={navigationRef}>
-          {/* 認証状態と家族グループの所属状態の監視先 */}
           <RootNavigator />
         </NavigationContainer>
         <StatusBar style="auto" />
