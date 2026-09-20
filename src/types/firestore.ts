@@ -15,18 +15,21 @@ export type ReportMethod = 'manual' | 'payment';
 //撮影の目的
 export type CameraMode = 'baseline' | 'detect';
 
+export const CAMERA_MODE_LABELS: Record<CameraMode, string> = {
+  baseline: '基準を登録する',
+  detect: '不足品を検出する',
+};
+
 //メッセージの種類
 export type MessageType = 'text' | 'alternativeProposal' | 'timeChangeProposal';
 
 //カテゴリ
-
-//Firestore のコレクションではなく定数として保持する
 export const CATEGORIES = [
-  { id: 'dailyGoods', label: '日用品', requiredLevel: 1 },
-  { id: 'beverage', label: '飲料', requiredLevel: 3 },
-  { id: 'food', label: '食品', requiredLevel: 5 },
-  { id: 'freshFood', label: '生鮮食品', requiredLevel: 8 },
-  { id: 'stationery', label: '文房具', requiredLevel: 12 },
+  { id: 'dailyGoods', label: '日用品' },
+  { id: 'beverage', label: '飲料' },
+  { id: 'food', label: '食品' },
+  { id: 'freshFood', label: '生鮮食品' },
+  { id: 'stationery', label: '文房具' },
 ] as const;
 
 export type CategoryId = (typeof CATEGORIES)[number]['id'];
@@ -63,7 +66,7 @@ export type FamilyDoc = {
   inviteCode: string;
   creatorUserId: string;
   createdTime: Timestamp;
-  //家の位置。未登録の間は null（家族グループの作成時は null）
+  //家の位置
   homeLocation: GeoPoint | null;
 };
 
@@ -72,9 +75,7 @@ export type MemberDoc = {
   displayName: string;
   joinedTime: Timestamp;
   transportMode: TransportMode;
-
-  transportModeExpireTime: Timestamp | null;
-
+  transportModeManualDate: string | null;
   busyUntilTime: Timestamp | null;
   busyLabel: string | null;
   level: number;
@@ -100,7 +101,6 @@ export type ItemDoc = {
 
   maxDistanceMeters: number | null;
   note: string;
-  autoNotifyEnabled: boolean;
   creatorUserId: string;
   createdTime: Timestamp;
 
@@ -111,6 +111,7 @@ export type ItemDoc = {
   completedTime: Timestamp | null;
 
   activeAssignmentId: string | null;
+  assignmentExpireTime: Timestamp | null;
   rejectedUserIds: string[];
   preferredStoreId: string | null;
 };

@@ -28,7 +28,7 @@ export function initialMemberData(displayName: unknown): DocumentData {
     displayName,
     joinedTime: FieldValue.serverTimestamp(),
     transportMode: "none",
-    transportModeExpireTime: null,
+    transportModeManualDate: null,
     busyUntilTime: null,
     busyLabel: null,
     level: 1,

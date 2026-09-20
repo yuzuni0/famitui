@@ -151,16 +151,15 @@ service cloud.firestore {
           && changed().hasOnly([
                'displayName',
                'transportMode',
-               'transportModeExpireTime',
+               'transportModeManualDate',
                'busyUntilTime',
                'busyLabel',
                'fcmToken'])
           && request.resource.data.keys().hasAll([
-               'displayName', 'transportMode', 'transportModeExpireTime',
-               'busyUntilTime', 'busyLabel'])
+               'displayName', 'transportMode', 'busyUntilTime', 'busyLabel'])
           && validDisplayName(request.resource.data.displayName)
           && validTransportMode(request.resource.data.transportMode)
-          && nullOrTimestamp(request.resource.data.transportModeExpireTime)
+          && nullOrString(request.resource.data.get('transportModeManualDate', null), 10)
           && nullOrTimestamp(request.resource.data.busyUntilTime)
           && nullOrString(request.resource.data.busyLabel, 20)
           && nullOrString(request.resource.data.get('fcmToken', null), 4096);
@@ -175,17 +174,17 @@ service cloud.firestore {
           && request.resource.data.keys().hasOnly([
                'itemName', 'category', 'status',
                'alternativeItemNames', 'maxDistanceMeters', 'note',
-               'autoNotifyEnabled', 'creatorUserId', 'createdTime',
+               'creatorUserId', 'createdTime',
                'requestedTime', 'requesterUserId', 'isImportant',
-               'completedTime', 'activeAssignmentId', 'rejectedUserIds',
-               'preferredStoreId'])
+               'completedTime', 'activeAssignmentId', 'assignmentExpireTime',
+               'rejectedUserIds', 'preferredStoreId'])
           && request.resource.data.keys().hasAll([
                'itemName', 'category', 'status',
                'alternativeItemNames', 'maxDistanceMeters', 'note',
-               'autoNotifyEnabled', 'creatorUserId', 'createdTime',
+               'creatorUserId', 'createdTime',
                'requestedTime', 'requesterUserId', 'isImportant',
-               'completedTime', 'activeAssignmentId', 'rejectedUserIds',
-               'preferredStoreId'])
+               'completedTime', 'activeAssignmentId', 'assignmentExpireTime',
+               'rejectedUserIds', 'preferredStoreId'])
           && request.resource.data.creatorUserId == request.auth.uid
           && request.resource.data.status == 'shortage'
           && request.resource.data.createdTime == request.time
@@ -194,12 +193,12 @@ service cloud.firestore {
           && request.resource.data.isImportant == false
           && request.resource.data.completedTime == null
           && request.resource.data.activeAssignmentId == null
+          && request.resource.data.assignmentExpireTime == null
           && request.resource.data.rejectedUserIds == []
           && nullOrStoreId(request.resource.data.preferredStoreId)
           && validItemName(request.resource.data.itemName)
           && validCategory(request.resource.data.category)
           && validNote(request.resource.data.note)
-          && request.resource.data.autoNotifyEnabled is bool
           && validMaxDistance(request.resource.data.maxDistanceMeters)
           && validAlternatives(request.resource.data.alternativeItemNames);
 
@@ -210,18 +209,17 @@ service cloud.firestore {
               || resource.data.activeAssignmentId == itemId + '_' + request.auth.uid)
           && changed().hasOnly([
                'itemName', 'category', 'alternativeItemNames',
-               'maxDistanceMeters', 'note', 'autoNotifyEnabled', 'preferredStoreId'])
+               'maxDistanceMeters', 'note', 'preferredStoreId'])
           && request.resource.data.keys().hasAll([
                'itemName', 'category', 'status',
                'alternativeItemNames', 'maxDistanceMeters', 'note',
-               'autoNotifyEnabled', 'creatorUserId', 'createdTime',
+               'creatorUserId', 'createdTime',
                'requestedTime', 'requesterUserId', 'isImportant',
                'completedTime', 'activeAssignmentId', 'rejectedUserIds',
                'preferredStoreId'])
           && validItemName(request.resource.data.itemName)
           && validCategory(request.resource.data.category)
           && validNote(request.resource.data.note)
-          && request.resource.data.autoNotifyEnabled is bool
           && validMaxDistance(request.resource.data.maxDistanceMeters)
           && validAlternatives(request.resource.data.alternativeItemNames)
           && nullOrStoreId(request.resource.data.preferredStoreId);

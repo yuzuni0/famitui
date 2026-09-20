@@ -1,7 +1,7 @@
 //Firebaseのエラーコードを日本語に変換する処理
 
 //Firebase のエラーコードを取得する
-export function errorCode(error: unknown): string | null {
+function errorCode(error: unknown): string | null {
   if (typeof error === 'object' && error !== null && 'code' in error) {
     const code = (error as { code: unknown }).code;
     return typeof code === 'string' ? code : null;
@@ -39,7 +39,8 @@ const SCOPE_MESSAGES: Record<ErrorScope, Partial<Record<string, string | null>>>
   reportPurchase: {
     'permission-denied': 'この家族グループに所属していません。',
     'not-found': '品目が見つかりません。',
-    'failed-precondition': '担当していないか、既に完了しています。',
+    //完了済みか他の人が担当中かはサーバーの文言で区別する
+    'failed-precondition': null,
   },
   cancelAssignment: {
     'permission-denied': 'この家族グループに所属していません。',
@@ -100,9 +101,7 @@ export function errorMessage(error: unknown, scope?: ErrorScope): string {
       return '既に家族グループに所属しています。';
     case 'internal':
       return '処理に失敗しました。時間をおいてもう一度お試しください。';
-
-    //Cloud Firestore のエラーコード
-    //Rules に拒否された場合に返る
+      
     case 'permission-denied':
     case 'firestore/permission-denied':
       return 'この操作を行う権限がありません。';

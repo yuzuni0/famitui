@@ -4,6 +4,7 @@
   "main": "index.ts",
   "dependencies": {
     "@maplibre/maplibre-react-native": "^11.3.7",
+    "@quidone/react-native-wheel-picker": "^1.7.1",
     "@react-native-firebase/app": "^25.1.0",
     "@react-native-firebase/auth": "^25.1.0",
     "@react-native-firebase/firestore": "^25.1.0",

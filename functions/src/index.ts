@@ -14,6 +14,9 @@ export { approveRequest } from "./item/approveRequest";
 export { rejectRequest } from "./item/rejectRequest";
 export { reportPurchase } from "./item/reportPurchase";
 export { cancelAssignment } from "./item/cancelAssignment";
+export {
+  releaseExpiredAssignments,
+} from "./item/releaseExpiredAssignments";
 export { detectItems } from "./photo/detectItems";
 export { storeCategories } from "./store/storeCategories";
 export { searchNearbyStores } from "./store/searchNearbyStores";

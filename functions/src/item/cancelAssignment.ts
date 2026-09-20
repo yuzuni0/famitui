@@ -41,6 +41,7 @@ export const cancelAssignment = onCall(async (request) => {
       // 外れた依頼の状態を更新する
       tx.update(itemRef, {
         activeAssignmentId: null,
+        assignmentExpireTime: null,
         rejectedUserIds: FieldValue.arrayUnion(uid),
       });
 

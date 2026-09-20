@@ -109,6 +109,8 @@ async function approveItem(
     });
   }
 
+  const expireTime = Timestamp.fromMillis(Date.now() + ASSIGNMENT_DURATION_MS);
+
   // 上書きされるのは自分自身の過去の割り当てのみである
   tx.set(assignmentsRef.doc(assignmentId), {
     itemId: itemRef.id,
@@ -116,12 +118,13 @@ async function approveItem(
     status: "active",
     approvedTime: FieldValue.serverTimestamp(),
 
-    expireTime: Timestamp.fromMillis(Date.now() + ASSIGNMENT_DURATION_MS),
+    expireTime,
     completedTime: null,
     reportMethod: null,
   });
 
   tx.update(itemRef, {
     activeAssignmentId: assignmentId,
+    assignmentExpireTime: expireTime,
   });
 }

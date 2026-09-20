@@ -11,6 +11,26 @@ export function transportModeLabel(mode: TransportMode): string {
   return TRANSPORT_MODES.find(entry => entry.id === mode)?.label ?? mode;
 }
 
+export type CategorySection<T> = {
+  title: string;
+  data: T[];
+};
+
+//カテゴリごとに分ける
+export function groupByCategory<T>(
+  entries: T[],
+  categoryOf: (entry: T) => CategoryId,
+): CategorySection<T>[] {
+  const sections: CategorySection<T>[] = [];
+  for (const category of CATEGORIES) {
+    const data = entries.filter(entry => categoryOf(entry) === category.id);
+    if (data.length > 0) {
+      sections.push({ title: category.label, data });
+    }
+  }
+  return sections;
+}
+
 //月日も表示する
 export function formatDateTime(value: Timestamp): string {
   const date = value.toDate();

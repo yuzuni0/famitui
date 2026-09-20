@@ -109,49 +109,77 @@ async function completeItem(
   itemRef: FirebaseFirestore.DocumentReference,
   assignmentId: string
 ): Promise<number> {
-  // 報告できるのは自分が担当している品目だけ
-  if (item.activeAssignmentId !== assignmentId) {
-    throw new HttpsError(
-      "failed-precondition",
-      "この品目を担当していません。"
-    );
+  const assignmentsRef = familyRef.collection("assignments");
+  const activeAssignmentId: string | null = item.activeAssignmentId ?? null;
+
+  let expiredAssignmentId: string | null = null;
+  if (activeAssignmentId !== null && activeAssignmentId !== assignmentId) {
+    const otherSnapshot = await tx.get(assignmentsRef.doc(activeAssignmentId));
+    const other = otherSnapshot.data();
+    if (other && other.status === "active") {
+      const expireTime = other.expireTime as Timestamp | null;
+      const isExpired =
+        expireTime === null || expireTime.toMillis() <= Date.now();
+      if (!isExpired) {
+        throw new HttpsError("failed-precondition", "他の人が担当中です。");
+      }
+      expiredAssignmentId = activeAssignmentId;
+    }
   }
 
-  const assignmentRef = familyRef.collection("assignments").doc(assignmentId);
+  const assignmentRef = assignmentsRef.doc(assignmentId);
   const assignmentSnapshot = await tx.get(assignmentRef);
   const assignment = assignmentSnapshot.data();
-  if (!assignment || assignment.status !== "active") {
-    throw new HttpsError(
-      "failed-precondition",
-      "担当中の割り当てがありません。"
-    );
+  const isMine =
+    activeAssignmentId === assignmentId &&
+    assignment !== undefined &&
+    assignment.status === "active";
+
+  // 書き込みを行う
+  if (expiredAssignmentId !== null) {
+    tx.update(assignmentsRef.doc(expiredAssignmentId), { status: "expired" });
   }
 
-  tx.update(assignmentRef, {
-    status: "completed",
-    completedTime: FieldValue.serverTimestamp(),
-    reportMethod: "manual",
-  });
+  if (isMine) {
+    tx.update(assignmentRef, {
+      status: "completed",
+      completedTime: FieldValue.serverTimestamp(),
+      reportMethod: "manual",
+    });
+  } else {
+    // 担当していない不足品は、報告と同時に担当して完了させる
+    tx.set(assignmentRef, {
+      itemId: itemRef.id,
+      assigneeUserId: assignmentId.slice(itemRef.id.length + 1),
+      status: "completed",
+      approvedTime: FieldValue.serverTimestamp(),
+      expireTime: Timestamp.now(),
+      completedTime: FieldValue.serverTimestamp(),
+      reportMethod: "manual",
+    });
+  }
 
   tx.update(itemRef, {
     status: "completed",
     completedTime: FieldValue.serverTimestamp(),
     activeAssignmentId: null,
+    assignmentExpireTime: null,
   });
 
-  return scoreForPurchase(item, assignment);
+  return scoreForPurchase(item, isMine ? assignment : null);
 }
 
 // 購入報告に合わせてスコアを計算する
 function scoreForPurchase(
   item: FirebaseFirestore.DocumentData,
-  assignment: FirebaseFirestore.DocumentData
+  assignment: FirebaseFirestore.DocumentData | null
 ): number {
   const base = (item.requesterUserId ?? null) !== null ?
     SCORE_REQUESTED_PURCHASE :
     SCORE_UNREQUESTED_PURCHASE;
 
-  const approvedTime = assignment.approvedTime as Timestamp | null;
+  const approvedTime =
+    assignment === null ? null : (assignment.approvedTime as Timestamp | null);
   const isPrompt =
     approvedTime !== null &&
     Date.now() - approvedTime.toMillis() <= PROMPT_BONUS_WINDOW_MS;

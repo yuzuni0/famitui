@@ -1,26 +1,13 @@
-export const LEVEL_THRESHOLDS = [0, 30, 80, 160, 300];
-export const MAX_LEVEL = 5;
-export const IMPORTANT_REQUEST_LIMITS = [0, 0, 1, 2, 3];
-export const SCORE_REQUESTED_PURCHASE = 10;
-export const SCORE_UNREQUESTED_PURCHASE = 3;
-export const SCORE_PROMPT_BONUS = 5;
-export const PROMPT_BONUS_WINDOW_MS = 2 * 60 * 60 * 1000;
-const JST_OFFSET_MS = 9 * 60 * 60 * 1000;
+import type { CategoryId, MemberDoc } from '../types/firestore';
 //スコアとレベルの計算処理
 
-//依頼できるカテゴリの指定
-export type ItemCategory = 'dailyGoods' | 'beverage' | 'food' | 'freshFood' | 'stationery';
-
-export const CATEGORY_LABELS: Record<ItemCategory, string> = {
-  dailyGoods: '日用品',
-  beverage: '飲料',
-  food: '食品',
-  freshFood: '生鮮食品',
-  stationery: '文房具',
-};
+const LEVEL_THRESHOLDS = [0, 30, 80, 160, 300];
+export const MAX_LEVEL = 5;
+const IMPORTANT_REQUEST_LIMITS = [0, 0, 1, 2, 3];
+const JST_OFFSET_MS = 9 * 60 * 60 * 1000;
 
 //各カテゴリが依頼できるレベル
-export const CATEGORY_UNLOCK_LEVEL: Record<ItemCategory, number> = {
+export const CATEGORY_UNLOCK_LEVEL: Record<CategoryId, number> = {
   dailyGoods: 1,
   food: 1,
   beverage: 2,
@@ -29,19 +16,18 @@ export const CATEGORY_UNLOCK_LEVEL: Record<ItemCategory, number> = {
 };
 
 //現在のレベルで依頼できるカテゴリ
-export function canRequestCategory(level: number, category: ItemCategory): boolean {
+export function canRequestCategory(level: number, category: CategoryId): boolean {
   return level >= CATEGORY_UNLOCK_LEVEL[category];
 }
 
-export function requestableCategories(level: number): ItemCategory[] {
-  return (Object.keys(CATEGORY_UNLOCK_LEVEL) as ItemCategory[]).filter(category =>
+export function requestableCategories(level: number): CategoryId[] {
+  return (Object.keys(CATEGORY_UNLOCK_LEVEL) as CategoryId[]).filter(category =>
     canRequestCategory(level, category),
   );
 }
 
-
 //スコアからレベルを求める
-export function levelForScore(score: number): number {
+function levelForScore(score: number): number {
   for (let level = MAX_LEVEL; level >= 1; level--) {
     if (score >= LEVEL_THRESHOLDS[level - 1]) {
       return level;
@@ -50,7 +36,7 @@ export function levelForScore(score: number): number {
   return 1;
 }
 
-//次のレベルまでの残りスコアを返す
+//次のレベルまでの進捗を返す
 export function progressToNextLevel(score: number): {
   current: number;
   next: number | null;
@@ -66,9 +52,20 @@ export function progressToNextLevel(score: number): {
   return { current, next: current + 1, ratio };
 }
 
-//重要な依頼の条件回数を表示
+//重要な依頼の上限回数
 export function importantRequestLimit(level: number): number {
   return IMPORTANT_REQUEST_LIMITS[level - 1] ?? 0;
+}
+
+//重要な依頼の残数
+export function remainingImportantRequests(
+  member: Pick<MemberDoc, 'level' | 'importantRequestDate' | 'importantRequestCount'>,
+): number {
+  const limit = importantRequestLimit(member.level);
+  if (member.importantRequestDate !== todayJst()) {
+    return limit;
+  }
+  return Math.max(0, limit - (member.importantRequestCount ?? 0));
 }
 
 //日付を返す

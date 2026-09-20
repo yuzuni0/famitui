@@ -6,13 +6,14 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ApplicationInfo
 import android.os.Build
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import android.util.Log
 import androidx.core.app.NotificationCompat
 
-private val TARGET_PACKAGES = setOf("jp.ne.paypay.android.app", "com.mobilesuica.msapp", "com.google.android.apps.walletnfcrel")
+private val PAYMENT_PACKAGES = setOf("jp.ne.paypay.android.app", "com.mobilesuica.msapp", "com.google.android.apps.walletnfcrel")
 private val PAYMENT_KEYWORDS = listOf("支払い", "支払", "決済", "利用")
 private val EXCLUDE_KEYWORDS = listOf("さんから", "チャージ", "キャンペーン", "ポイント", "クーポン")
 internal const val PREFS_NAME = "payment_notification"
@@ -20,8 +21,15 @@ private const val CHANNEL_ID = "payment_confirm"
 private const val NOTIFICATION_ID = 1001
 
 class PaymentNotificationService : NotificationListenerService() {
+  private fun isDebuggable(): Boolean =
+    (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
+
+  private fun isPaymentPackage(packageName: String): Boolean =
+    packageName in PAYMENT_PACKAGES ||
+      (isDebuggable() && packageName == "com.android.shell")
+
   override fun onNotificationPosted(sbn: StatusBarNotification) {
-    if (sbn.packageName !in TARGET_PACKAGES) return
+    if (!isPaymentPackage(sbn.packageName)) return
 
     val extras = sbn.notification.extras
     val text = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString() ?: ""

@@ -19,6 +19,73 @@ const SOURCE_ID_PREFIX = "osm.n";
 // 使うトークン
 const MAX_TOKENS = 2000;
 
+const OVERPASS_URL = "https://overpass-api.de/api/interpreter";
+const SEARCH_RADIUS_METERS = 700;
+const OVERPASS_QUERY_TIMEOUT_SECONDS = 25;
+const OVERPASS_FETCH_TIMEOUT_MS = 20000;
+
+type OverpassElement = {
+  id?: unknown;
+  lat?: unknown;
+  lon?: unknown;
+  tags?: { name?: unknown; shop?: unknown };
+};
+
+// 要素をストアのデータに変換する
+function toRawCandidate(element: OverpassElement): unknown | null {
+  if (typeof element.id !== "number") {
+    return null;
+  }
+  const storeName = element.tags?.name;
+  if (typeof storeName !== "string" || storeName.length === 0) {
+    return null;
+  }
+  const shop = element.tags?.shop;
+  return {
+    sourceId: `${SOURCE_ID_PREFIX}${element.id}`,
+    storeName,
+    location: { latitude: element.lat, longitude: element.lon },
+    osmCategories: typeof shop === "string" ? [shop] : [],
+  };
+}
+
+// Overpass に問い合わせる
+async function fetchCandidatesFromOverpass(
+  center: GeoPoint
+): Promise<unknown[]> {
+  const query = [
+    `[out:json][timeout:${OVERPASS_QUERY_TIMEOUT_SECONDS}];`,
+    `node["shop"](around:${SEARCH_RADIUS_METERS},` +
+      `${center.latitude},${center.longitude});`,
+    `out body ${MAX_STORES};`,
+  ].join("");
+
+  const response = await fetch(OVERPASS_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      "User-Agent": "famitui/1.0 (student project)",
+    },
+    body: `data=${encodeURIComponent(query)}`,
+    signal: AbortSignal.timeout(OVERPASS_FETCH_TIMEOUT_MS),
+  });
+  if (!response.ok) {
+    throw new HttpsError(
+      "unavailable",
+      `周辺の店舗の検索に失敗しました（${response.status}）`
+    );
+  }
+
+  const body = (await response.json()) as { elements?: unknown };
+  const elements = Array.isArray(body.elements) ?
+    (body.elements as OverpassElement[]) :
+    [];
+  return elements
+    .map(toRawCandidate)
+    .filter((candidate) => candidate !== null)
+    .slice(0, MAX_STORES);
+}
+
 // アプリ側の StoreCandidate に距離を加えたもの
 type Candidate = {
   sourceId: string;
@@ -174,15 +241,14 @@ export const searchNearbyStores = onCall(
 
     // 距離順の並べ替えの基準
     const center = requireGeoPoint(request.data?.center, "center");
-
-    const rawCandidates = request.data?.candidates;
-    if (!Array.isArray(rawCandidates)) {
+    const rawInput = request.data?.candidates ?? null;
+    if (rawInput !== null && !Array.isArray(rawInput)) {
       throw new HttpsError(
         "invalid-argument",
-        "candidates は配列で指定してください。"
+        "candidates は配列か null で指定してください。"
       );
     }
-    if (rawCandidates.length > MAX_STORES) {
+    if (rawInput !== null && rawInput.length > MAX_STORES) {
       throw new HttpsError(
         "invalid-argument",
         `candidates は${MAX_STORES}件以内で指定してください。`
@@ -195,6 +261,17 @@ export const searchNearbyStores = onCall(
     // 各ログに経過時間を載せる
     const startedAt = Date.now();
     const elapsedMs = () => Date.now() - startedAt;
+
+    let rawCandidates: unknown[];
+    if (rawInput === null) {
+      rawCandidates = await fetchCandidatesFromOverpass(center);
+      logger.info("サーバーで周辺を検索しました", {
+        found: rawCandidates.length,
+        elapsedMs: elapsedMs(),
+      });
+    } else {
+      rawCandidates = rawInput;
+    }
 
     // 距離順に並べる
     const candidates = rawCandidates

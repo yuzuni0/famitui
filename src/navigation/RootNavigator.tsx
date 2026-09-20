@@ -3,39 +3,42 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import * as Notifications from 'expo-notifications';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, AppState, StyleSheet, View } from 'react-native';
+import { SafeAreaInsetsContext, useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import AcceptRequestPage from '../pages/AcceptRequestPage';
-import AssignedListPage from '../pages/AssignedListPage';
-import CameraPage from '../pages/CameraPage';
-import ChatPage from '../pages/ChatPage';
-import DetectionResultPage from '../pages/DetectionResultPage';
-import FamilySetupPage from '../pages/FamilySetupPage';
-import FamilyStatusPage from '../pages/FamilyStatusPage';
-import HomeLocationPage from '../pages/HomeLocationPage';
-import HomePage from '../pages/HomePage';
-import ItemListPage from '../pages/ItemListPage';
-import LevelUpPage from '../pages/LevelUpPage';
-import LoginPage from '../pages/LoginPage';
-import MyStatusPage from '../pages/MyStatusPage';
-import ProfileSetupPage from '../pages/ProfileSetupPage';
-import PurchaseConfirmPage from '../pages/PurchaseConfirmPage';
-import PurchaseReportPage from '../pages/PurchaseReportPage';
-import RequestableItemsPage from '../pages/RequestableItemsPage';
-import RoutePage from '../pages/RoutePage';
-import SignUpPage from '../pages/SignUpPage';
-import StoreSearchPage from '../pages/StoreSearchPage';
-import TaskDetailPage from '../pages/TaskDetailPage';
-import { observeAuthState } from '../services/auth';
-import { initBackgroundLocation, startBackgroundLocation, stopBackgroundLocation } from '../services/backgroundLocation';
+import BottomTabBar from '../components/BottomTabBar';
+import LoginPage from '../pages/auth/LoginPage';
+import ProfileSetupPage from '../pages/auth/ProfileSetupPage';
+import SignUpPage from '../pages/auth/SignUpPage';
+import ChatPage from '../pages/chat/ChatPage';
+import FamilySetupPage from '../pages/family/FamilySetupPage';
+import FamilyStatusPage from '../pages/family/FamilyStatusPage';
+import HomeLocationPage from '../pages/family/HomeLocationPage';
+import HomePage from '../pages/family/HomePage';
+import AcceptRequestPage from '../pages/item/AcceptRequestPage';
+import AssignedListPage from '../pages/item/AssignedListPage';
+import ItemListPage from '../pages/item/ItemListPage';
+import PurchaseConfirmPage from '../pages/item/PurchaseConfirmPage';
+import PurchaseReportPage from '../pages/item/PurchaseReportPage';
+import RequestDetailPage from '../pages/item/RequestDetailPage';
+import TaskDetailPage from '../pages/item/TaskDetailPage';
+import LevelUpPage from '../pages/member/LevelUpPage';
+import MyStatusPage from '../pages/member/MyStatusPage';
+import RequestableItemsPage from '../pages/member/RequestableItemsPage';
+import CameraPage from '../pages/photo/CameraPage';
+import DetectionResultPage from '../pages/photo/DetectionResultPage';
+import SettingsPage from '../pages/settings/SettingsPage';
+import RoutePage from '../pages/store/RoutePage';
+import StoreSearchPage from '../pages/store/StoreSearchPage';
+import { observeAuthState } from '../services/device/auth';
+import { initBackgroundLocation, startBackgroundLocation, stopBackgroundLocation } from '../services/device/backgroundLocation';
+import { initNotifications, parseNotificationData } from '../services/device/notification';
+import type { NotificationData } from '../services/device/notification';
+import { registerFcmToken } from '../services/device/pushToken';
+import { observeUserDoc } from '../services/firestore/user';
+import type { UserDocSnapshot } from '../services/firestore/user';
 import { startGeofenceMonitor } from '../services/geofenceMonitor';
-import { initNotifications, parseNotificationData } from '../services/notification';
-import type { NotificationData } from '../services/notification';
 import { shouldOpenPurchaseConfirm } from '../services/paymentConfirm';
-import { registerFcmToken } from '../services/pushToken';
-import { observeUserDoc } from '../services/user';
-import type { UserDocSnapshot } from '../services/user';
 import type { CameraMode } from '../types/firestore';
-
 
 //未ログインのスタック
 export type AuthStackParamList = {
@@ -57,20 +60,27 @@ export type FamilySetupStackParamList = {
 export type MainStackParamList = {
   Home: undefined;
   ItemList: undefined;
-  AcceptRequest: { initialItemId: string };
+  AcceptRequest: {
+    initialItemIds: string[];
+    detected: boolean;
+    //詳細画面で受け付ける
+    selection?: { itemId: string; accepted: boolean };
+  };
+  RequestDetail: { itemId: string; selected: boolean };
   AssignedList: undefined;
   AssignmentDetail: { itemId: string };
   Route: { storeId: string };
   PurchaseReport: { initialItemId: string };
   PurchaseConfirm: undefined;
   LevelUp: { previousLevel: number; newLevel: number; addedScore: number };
+  Settings: undefined;
   MyStatus: undefined;
   RequestableItems: undefined;
   FamilyStatus: undefined;
   HomeLocation: undefined;
   StoreSearch: undefined;
   Camera: { mode: CameraMode };
-  DetectionResult: { storagePath: string; mode: CameraMode };
+  DetectionResult: { localUri: string; mode: CameraMode };
   Chat: { familyId: string; assignmentId: string; itemName: string; partnerUserId: string };
 };
 
@@ -98,6 +108,7 @@ export default function RootNavigator() {
   const [initializing, setInitializing] = useState(true);//判定中かどうか
   const [pendingNotification, setPendingNotification] = useState<NotificationData | null>(null);
   const handledNotificationId = useRef<string | null>(null);//同じ通知を二重に処理しない
+  const insets = useSafeAreaInsets();
 
   //通知を受け取った時の処理
   useEffect(() => {
@@ -111,6 +122,9 @@ export default function RootNavigator() {
       }
       handledNotificationId.current = request.identifier;
       setPendingNotification(parseNotificationData(request.content.data));
+      Notifications.clearLastNotificationResponseAsync().catch(error => {
+        console.warn('[RootNavigator] clearLastNotificationResponseAsync 失敗', error);
+      });
     };
 
     const subscription = Notifications.addNotificationResponseReceivedListener(handleResponse);
@@ -126,6 +140,10 @@ export default function RootNavigator() {
     const unsubscribe = observeAuthState(nextUid => {//ログイン状態が変わった時に呼ぶ
       setUid(nextUid);
       setInitializing(false);
+      
+      if (nextUid === null) {
+        setPendingNotification(null);
+      }
     });
     return unsubscribe;
   }, []);
@@ -195,7 +213,10 @@ export default function RootNavigator() {
     }
     setPendingNotification(null);
     if (pendingNotification.kind === 'nearbyStore') {
-      navigationRef.navigate('AcceptRequest', { initialItemId: pendingNotification.itemIds[0] });
+      navigationRef.navigate('AcceptRequest', {
+        initialItemIds: pendingNotification.itemIds,
+        detected: true,
+      });
     } else if (pendingNotification.kind === 'chat') {
       const { assignmentId, itemName, partnerUserId } = pendingNotification;
       navigationRef.navigate('Chat', {
@@ -233,7 +254,7 @@ export default function RootNavigator() {
     //起動時と通知タップの起動時
     check();
 
-    
+    //バックグラウンド時の処理
     const subscription = AppState.addEventListener('change', state => {
       if (state === 'active') {
         check();
@@ -254,8 +275,8 @@ export default function RootNavigator() {
   if (uid === null) {
     return (
       <AuthStack.Navigator>
-        <AuthStack.Screen name="Login" component={LoginPage} />
-        <AuthStack.Screen name="SignUp" component={SignUpPage} />
+        <AuthStack.Screen name="Login" options={{ title: "ログイン" }} component={LoginPage} />
+        <AuthStack.Screen name="SignUp" options={{ title: "アカウント作成" }} component={SignUpPage} />
       </AuthStack.Navigator>
     );
   }
@@ -267,7 +288,7 @@ export default function RootNavigator() {
   if (userDoc.status === 'missing') {
     return (
       <ProfileSetupStack.Navigator>
-        <ProfileSetupStack.Screen name="ProfileSetup">
+        <ProfileSetupStack.Screen name="ProfileSetup" options={{ title: 'プロフィール登録' }}>
           {() => <ProfileSetupPage uid={uid} />}
         </ProfileSetupStack.Screen>
       </ProfileSetupStack.Navigator>
@@ -277,107 +298,125 @@ export default function RootNavigator() {
   if (familyId === null) {
     return (
       <FamilySetupStack.Navigator>
-        <FamilySetupStack.Screen name="FamilySetup" component={FamilySetupPage} />
+        <FamilySetupStack.Screen name="FamilySetup" options={{ title: "家族グループ作成" }} component={FamilySetupPage} />
       </FamilySetupStack.Navigator>
     );
   }
 
   return (
-    <MainStack.Navigator>
-      <MainStack.Screen name="Home">
-        {() => <HomePage familyId={familyId} uid={uid} />}
-      </MainStack.Screen>
-      <MainStack.Screen name="ItemList">
-        {() => <ItemListPage familyId={familyId} uid={uid} />}
-      </MainStack.Screen>
-      <MainStack.Screen name="AssignedList" options={{ title: '担当している品目' }}>
-        {() => <AssignedListPage familyId={familyId} uid={uid} />}
-      </MainStack.Screen>
-      <MainStack.Screen name="AssignmentDetail" options={{ title: '担当の詳細' }}>
-        {({ route }) => (
-          <TaskDetailPage familyId={familyId} uid={uid} itemId={route.params.itemId} />
-        )}
-      </MainStack.Screen>
-      <MainStack.Screen name="Route" options={{ title: 'ナビゲーション' }}>
-        {({ route }) => (
-          <RoutePage familyId={familyId} uid={uid} storeId={route.params.storeId} />
-        )}
-      </MainStack.Screen>
-      <MainStack.Screen name="AcceptRequest" options={{ title: '依頼を受け付ける' }}>
-        {({ route }) => (
-          <AcceptRequestPage
-            familyId={familyId}
-            uid={uid}
-            initialItemId={route.params.initialItemId}
-          />
-        )}
-      </MainStack.Screen>
-      <MainStack.Screen name="PurchaseReport" options={{ title: '購入を報告する' }}>
-        {({ route }) => (
-          <PurchaseReportPage
-            familyId={familyId}
-            uid={uid}
-            initialItemId={route.params.initialItemId}
-          />
-        )}
-      </MainStack.Screen>
-      <MainStack.Screen name="PurchaseConfirm" options={{ title: '購入の確認' }}>
-        {() => <PurchaseConfirmPage familyId={familyId} uid={uid} />}
-      </MainStack.Screen>
-      <MainStack.Screen
-        name="LevelUp"
-        options={{ title: 'レベルアップ', headerBackVisible: false, gestureEnabled: false }}
-      >
-        {({ route }) => (
-          <LevelUpPage
-            previousLevel={route.params.previousLevel}
-            newLevel={route.params.newLevel}
-            addedScore={route.params.addedScore}
-          />
-        )}
-      </MainStack.Screen>
-      <MainStack.Screen name="MyStatus" options={{ title: '自分の状態' }}>
-        {() => <MyStatusPage familyId={familyId} uid={uid} />}
-      </MainStack.Screen>
-      <MainStack.Screen name="RequestableItems" options={{ title: '依頼できるカテゴリ' }}>
-        {() => <RequestableItemsPage familyId={familyId} uid={uid} />}
-      </MainStack.Screen>
-      <MainStack.Screen name="FamilyStatus" options={{ title: '家族の状態' }}>
-        {() => <FamilyStatusPage familyId={familyId} uid={uid} />}
-      </MainStack.Screen>
-      <MainStack.Screen name="HomeLocation" options={{ title: '家の位置' }}>
-        {() => <HomeLocationPage familyId={familyId} />}
-      </MainStack.Screen>
-      <MainStack.Screen name="StoreSearch" options={{ title: '店舗を選ぶ' }}>
-        {() => <StoreSearchPage familyId={familyId} />}
-      </MainStack.Screen>
-      <MainStack.Screen name="Camera" options={{ title: '撮影する' }}>
-        {({ route }) => (
-          <CameraPage familyId={familyId} uid={uid} mode={route.params.mode} />
-        )}
-      </MainStack.Screen>
-      <MainStack.Screen name="DetectionResult" options={{ title: '判定の結果' }}>
-        {({ route }) => (
-          <DetectionResultPage
-            familyId={familyId}
-            uid={uid}
-            storagePath={route.params.storagePath}
-            mode={route.params.mode}
-          />
-        )}
-      </MainStack.Screen>
-      <MainStack.Screen name="Chat">
-        {({ route }) => (
-          <ChatPage
-            familyId={route.params.familyId}
-            uid={uid}
-            assignmentId={route.params.assignmentId}
-            itemName={route.params.itemName}
-            partnerUserId={route.params.partnerUserId}
-          />
-        )}
-      </MainStack.Screen>
-    </MainStack.Navigator>
+    <View style={styles.main}>
+      <SafeAreaInsetsContext.Provider value={{ ...insets, bottom: 0 }}>
+        <MainStack.Navigator>
+          <MainStack.Screen name="Home" options={{ title: "ホーム" }}>
+            {() => <HomePage familyId={familyId} uid={uid} />}
+          </MainStack.Screen>
+          <MainStack.Screen name="ItemList" options={{ title: '不足品の一覧' }}>
+            {() => <ItemListPage familyId={familyId} uid={uid} />}
+          </MainStack.Screen>
+          <MainStack.Screen name="AssignedList" options={{ title: '担当品目の一覧' }}>
+            {() => <AssignedListPage familyId={familyId} uid={uid} />}
+          </MainStack.Screen>
+          <MainStack.Screen name="AssignmentDetail" options={{ title: '担当の詳細' }}>
+            {({ route }) => (
+              <TaskDetailPage familyId={familyId} uid={uid} itemId={route.params.itemId} />
+            )}
+          </MainStack.Screen>
+          <MainStack.Screen name="Route" options={{ title: 'ナビゲーション' }}>
+            {({ route }) => (
+              <RoutePage familyId={familyId} uid={uid} storeId={route.params.storeId} />
+            )}
+          </MainStack.Screen>
+          <MainStack.Screen name="AcceptRequest" options={{ title: '依頼の受付' }}>
+            {({ route }) => (
+              <AcceptRequestPage
+                familyId={familyId}
+                uid={uid}
+                initialItemIds={route.params.initialItemIds}
+                detected={route.params.detected}
+                selection={route.params.selection}
+              />
+            )}
+          </MainStack.Screen>
+          <MainStack.Screen name="RequestDetail" options={{ title: '依頼の詳細' }}>
+            {({ route }) => (
+              <RequestDetailPage
+                familyId={familyId}
+                uid={uid}
+                itemId={route.params.itemId}
+                selected={route.params.selected}
+              />
+            )}
+          </MainStack.Screen>
+          <MainStack.Screen name="PurchaseReport" options={{ title: '購入の報告' }}>
+            {({ route }) => (
+              <PurchaseReportPage
+                familyId={familyId}
+                uid={uid}
+                initialItemId={route.params.initialItemId}
+              />
+            )}
+          </MainStack.Screen>
+          <MainStack.Screen name="PurchaseConfirm" options={{ title: '購入の確認' }}>
+            {() => <PurchaseConfirmPage familyId={familyId} uid={uid} />}
+          </MainStack.Screen>
+          <MainStack.Screen
+            name="LevelUp"
+            options={{ title: 'レベルアップ', headerBackVisible: false, gestureEnabled: false }}
+          >
+            {({ route }) => (
+              <LevelUpPage
+                previousLevel={route.params.previousLevel}
+                newLevel={route.params.newLevel}
+                addedScore={route.params.addedScore}
+              />
+            )}
+          </MainStack.Screen>
+          <MainStack.Screen name="Settings" options={{ title: '設定' }} component={SettingsPage} />
+          <MainStack.Screen name="MyStatus" options={{ title: '自分のステータス' }}>
+            {() => <MyStatusPage familyId={familyId} uid={uid} />}
+          </MainStack.Screen>
+          <MainStack.Screen name="RequestableItems" options={{ title: '依頼できるカテゴリ' }}>
+            {() => <RequestableItemsPage familyId={familyId} uid={uid} />}
+          </MainStack.Screen>
+          <MainStack.Screen name="FamilyStatus" options={{ title: '家族のステータス' }}>
+            {() => <FamilyStatusPage familyId={familyId} uid={uid} />}
+          </MainStack.Screen>
+          <MainStack.Screen name="HomeLocation" options={{ title: '家の位置' }}>
+            {() => <HomeLocationPage familyId={familyId} />}
+          </MainStack.Screen>
+          <MainStack.Screen name="StoreSearch" options={{ title: '店舗を選ぶ' }}>
+            {() => <StoreSearchPage familyId={familyId} />}
+          </MainStack.Screen>
+          <MainStack.Screen name="Camera" options={{ title: '撮影する' }}>
+            {({ route }) => (
+              <CameraPage familyId={familyId} uid={uid} mode={route.params.mode} />
+            )}
+          </MainStack.Screen>
+          <MainStack.Screen name="DetectionResult" options={{ title: '判定の結果' }}>
+            {({ route }) => (
+              <DetectionResultPage
+                familyId={familyId}
+                uid={uid}
+                localUri={route.params.localUri}
+                mode={route.params.mode}
+              />
+            )}
+          </MainStack.Screen>
+          <MainStack.Screen name="Chat">
+            {({ route }) => (
+              <ChatPage
+                familyId={route.params.familyId}
+                uid={uid}
+                assignmentId={route.params.assignmentId}
+                itemName={route.params.itemName}
+                partnerUserId={route.params.partnerUserId}
+              />
+            )}
+          </MainStack.Screen>
+        </MainStack.Navigator>
+      </SafeAreaInsetsContext.Provider>
+      <BottomTabBar navigationRef={navigationRef} />
+    </View>
   );
 }
 
@@ -386,5 +425,8 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  main: {
+    flex: 1,
   },
 });
