@@ -1,6 +1,9 @@
 import { distanceMeters } from '../lib/geo';
 import type { FamilyDoc, GeoPoint, TransportMode } from '../types/firestore';
-import { GEOFENCE_RADIUS_METERS, IMPORTANT_GEOFENCE_RADIUS_METERS, MAX_GEOFENCES, RELOCATE_DISTANCE_METERS, fetchCurrentBackgroundLocation, fetchRegisteredStores, onDistanceMoved, onGeofenceEnter, onGeofenceExit, onTransportModeChanged, replaceStoreGeofences } from './device/backgroundLocation';
+import { GEOFENCE_RADIUS_METERS, IMPORTANT_GEOFENCE_RADIUS_METERS, MAX_GEOFENCES, RELOCATE_DISTANCE_METERS, emitBackgroundEvent, fetchCurrentBackgroundLocation, fetchRegisteredStores, loadMonitorState, onDistanceMoved, onGeofenceEnter, onGeofenceExit, onTransportModeChanged, replaceStoreGeofences, saveMonitorState } from './device/backgroundLocation';
+import type { BackgroundLocationEvent } from '../../modules/backgroundLocation';
+import { getCurrentUid } from './device/auth';
+import { fetchUserDoc } from './firestore/user';
 import { observeFamilyDoc } from './firestore/family';
 import { fetchItems, isAssigned, isRequested } from './firestore/item';
 import type { ItemWithId } from './firestore/item';
@@ -42,12 +45,40 @@ const lastNotifiedTimes = new Map<string, number>();
 //今いる店舗
 const insideStoreIds = new Set<string>();
 
+type MonitorState = {
+  insideStoreIds: string[];
+  lastNotifiedTimes: Record<string, number>;
+  lastSearchCenter: GeoPoint | null;
+};
+
+//状態を引き継ぐ
+function persistState(): void {
+  saveMonitorState({
+    insideStoreIds: [...insideStoreIds],
+    lastNotifiedTimes: Object.fromEntries(lastNotifiedTimes),
+    lastSearchCenter,
+  } satisfies MonitorState);
+}
+
+function restoreState(): void {
+  const state = loadMonitorState<MonitorState>();
+  insideStoreIds.clear();
+  lastNotifiedTimes.clear();
+  lastSearchCenter = state?.lastSearchCenter ?? null;
+  if (state === null) {
+    return;
+  }
+  state.insideStoreIds.forEach(storeId => insideStoreIds.add(storeId));
+  Object.entries(state.lastNotifiedTimes).forEach(([storeId, time]) => lastNotifiedTimes.set(storeId, time));
+}
+
 //店舗から出た時の処理
 function leaveStore(storeId: string): void {
   if (!insideStoreIds.delete(storeId)) {
     return;
   }
   lastNotifiedTimes.delete(storeId);
+  persistState();
   console.log('[geofence] 退出により再通知の抑制を解除', storeId);
 }
 
@@ -163,6 +194,7 @@ async function handleMoved(familyId: string, location: GeoPoint): Promise<boolea
     const stores = await searchNearbyStores(familyId, location, candidates);
     await replaceStoreGeofences(stores, radius);
     lastSearchCenter = location;
+    persistState();
     cancelRetry();
     console.log(`[geofence] 周辺検索の結果 ${stores.length} 件で登録`);
   } catch (error) {
@@ -247,6 +279,7 @@ export async function handleStoreEntered(
     return;
   }
   insideStoreIds.add(store.storeId);
+  persistState();
 
   const now = Date.now();
   const lastNotified = lastNotifiedTimes.get(store.storeId);
@@ -281,6 +314,7 @@ export async function handleStoreEntered(
 
     await notifyNearbyStore(store, targets);
     lastNotifiedTimes.set(store.storeId, now);
+    persistState();
   } catch (error) {
     console.warn('geofenceMonitor: 通知の判断に失敗しました', error);
   }
@@ -340,16 +374,17 @@ async function handleTransportModeChanged(
   }
 }
 
+let activeMonitor: { familyId: string; uid: string; stop: () => void } | null = null;
+
 //監視を開始する
 export function startGeofenceMonitor(familyId: string, uid: string): () => void {
+  activeMonitor?.stop();
   let active = true;
   let lastMode: TransportMode | null = null;
-  lastSearchCenter = null;
   lastSearchAttemptTime = 0;
   pendingLocation = null;
   cancelRetry();
-  insideStoreIds.clear();
-  lastNotifiedTimes.clear();
+  restoreState();
 
   async function handleLocation(location: GeoPoint): Promise<void> {
     await checkStores(familyId, uid, location);
@@ -401,12 +436,41 @@ export function startGeofenceMonitor(familyId: string, uid: string): () => void 
     void handleTransportModeChanged(familyId, uid, mode);
   });
 
-  return () => {
+  const stop = () => {
     active = false;
     cancelRetry();
     unsubscribeMoved();
     unsubscribeEnter();
     unsubscribeExit();
     unsubscribeTransport();
+    if (activeMonitor?.stop === stop) {
+      activeMonitor = null;
+    }
   };
+  activeMonitor = { familyId, uid, stop };
+  return stop;
+}
+
+//位置情報イベントを受け取った時の処理
+export async function handleBackgroundLocationEvent(event: BackgroundLocationEvent): Promise<void> {
+  if (!(await ensureGeofenceMonitor())) {
+    return;
+  }
+  emitBackgroundEvent(event);
+}
+
+export async function ensureGeofenceMonitor(): Promise<boolean> {
+  if (activeMonitor !== null) {
+    return true;
+  }
+  const uid = getCurrentUid();
+  if (uid === null) {
+    return false;
+  }
+  const user = await fetchUserDoc(uid);
+  if (user === null || user.familyId === null) {
+    return false;
+  }
+  startGeofenceMonitor(user.familyId, uid);
+  return true;
 }

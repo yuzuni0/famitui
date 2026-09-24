@@ -30,7 +30,7 @@ import SettingsPage from '../pages/settings/SettingsPage';
 import RoutePage from '../pages/store/RoutePage';
 import StoreSearchPage from '../pages/store/StoreSearchPage';
 import { observeAuthState } from '../services/device/auth';
-import { initBackgroundLocation, startBackgroundLocation, stopBackgroundLocation } from '../services/device/backgroundLocation';
+import { startBackgroundLocation, stopBackgroundLocation } from '../services/device/backgroundLocation';
 import { initNotifications, parseNotificationData } from '../services/device/notification';
 import type { NotificationData } from '../services/device/notification';
 import { registerFcmToken } from '../services/device/pushToken';
@@ -177,7 +177,6 @@ export default function RootNavigator() {
     (async () => {
       try {
         await initNotifications();
-        await initBackgroundLocation();
         await startBackgroundLocation();
         if (cancelled) {
           return;

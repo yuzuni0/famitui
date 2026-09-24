@@ -51,25 +51,7 @@
           "locationAlwaysAndWhenInUsePermission": "近くの店舗を表示し、経路を案内するために使用します。"
         }
       ],
-      "@maplibre/maplibre-react-native",
-      [
-        "react-native-background-geolocation",
-        {
-          "license": ""
-        }
-      ],
-      "react-native-background-fetch",
-      [
-        "expo-build-properties",
-        {
-          "android": {
-            "extraMavenRepos": [
-              "./../node_modules/react-native-background-geolocation/android/libs",
-              "./../node_modules/react-native-background-fetch/android/libs"
-            ]
-          }
-        }
-      ]
+      "@maplibre/maplibre-react-native"
     ]
   }
 }

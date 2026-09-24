@@ -1,4 +1,4 @@
-import { doc, getFirestore, onSnapshot, serverTimestamp, setDoc } from '@react-native-firebase/firestore';
+import { doc, getDoc, getFirestore, onSnapshot, serverTimestamp, setDoc } from '@react-native-firebase/firestore';
 import type { UserDoc } from '../../types/firestore';
 //users/{uid} の読み書きを行う
 
@@ -18,6 +18,11 @@ export async function createUserDoc(uid: string, displayName: string): Promise<v
     familyId: null,
     createdTime: serverTimestamp(),
   });
+}
+
+export async function fetchUserDoc(uid: string): Promise<UserDoc | null> {
+  const snapshot = await getDoc(userDocRef(uid));
+  return snapshot.exists() ? (snapshot.data() as UserDoc) : null;
 }
 
 //users/{uid} の監視結果
