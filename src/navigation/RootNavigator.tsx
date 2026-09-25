@@ -2,7 +2,7 @@ import { createNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import * as Notifications from 'expo-notifications';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, AppState, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, AppState, Image, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaInsetsContext, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import BottomTabBar from '../components/BottomTabBar';
@@ -91,6 +91,8 @@ const MainStack = createNativeStackNavigator<MainStackParamList>();
 
 //ナビゲーターの外から遷移する
 export const navigationRef = createNavigationContainerRef<MainStackParamList>();
+
+const HEADER_OPTIONS = { headerStyle: { backgroundColor: '#F7F9FC' }, headerShadowVisible: false, headerTintColor: '#111827' } as const;
 
 //判定が終わるまでの間に出す表示
 function LoadingScreen() {
@@ -273,7 +275,7 @@ export default function RootNavigator() {
   //未ログイン
   if (uid === null) {
     return (
-      <AuthStack.Navigator>
+      <AuthStack.Navigator screenOptions={HEADER_OPTIONS}>
         <AuthStack.Screen name="Login" options={{ title: "ログイン" }} component={LoginPage} />
         <AuthStack.Screen name="SignUp" options={{ title: "アカウント作成" }} component={SignUpPage} />
       </AuthStack.Navigator>
@@ -286,7 +288,7 @@ export default function RootNavigator() {
 
   if (userDoc.status === 'missing') {
     return (
-      <ProfileSetupStack.Navigator>
+      <ProfileSetupStack.Navigator screenOptions={HEADER_OPTIONS}>
         <ProfileSetupStack.Screen name="ProfileSetup" options={{ title: 'プロフィール登録' }}>
           {() => <ProfileSetupPage uid={uid} />}
         </ProfileSetupStack.Screen>
@@ -296,7 +298,7 @@ export default function RootNavigator() {
 
   if (familyId === null) {
     return (
-      <FamilySetupStack.Navigator>
+      <FamilySetupStack.Navigator screenOptions={HEADER_OPTIONS}>
         <FamilySetupStack.Screen name="FamilySetup" options={{ title: "家族グループ作成" }} component={FamilySetupPage} />
       </FamilySetupStack.Navigator>
     );
@@ -305,8 +307,19 @@ export default function RootNavigator() {
   return (
     <View style={styles.main}>
       <SafeAreaInsetsContext.Provider value={{ ...insets, bottom: 0 }}>
-        <MainStack.Navigator>
-          <MainStack.Screen name="Home" options={{ title: "ホーム" }}>
+        <MainStack.Navigator screenOptions={HEADER_OPTIONS}>
+          <MainStack.Screen
+            name="Home"
+            options={{
+              title: 'ホーム',
+              headerTitle: () => (
+                <View style={styles.headerBrand}>
+                  <Image source={require('../../assets/icon.png')} style={styles.headerLogo} />
+                  <Text style={styles.headerBrandText}>ファミつい</Text>
+                </View>
+              ),
+            }}
+          >
             {() => <HomePage familyId={familyId} uid={uid} />}
           </MainStack.Screen>
           <MainStack.Screen name="ItemList" options={{ title: '不足品の一覧' }}>
@@ -427,5 +440,22 @@ const styles = StyleSheet.create({
   },
   main: {
     flex: 1,
+  },
+  headerBrand: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginLeft: 8,
+    marginTop: 20,
+  },
+  headerLogo: {
+    width: 50,
+    height: 50,
+    borderRadius: 12,
+  },
+  headerBrandText: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#111827',
   },
 });

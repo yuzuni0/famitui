@@ -37,14 +37,14 @@ class PaymentNotificationService : NotificationListenerService() {
     val body = text + bigText
 
     if (EXCLUDE_KEYWORDS.any { body.contains(it) }) {
-      Log.d("PaymentNotif", "excluded: $body")
+      if (isDebuggable()) Log.d("PaymentNotif", "excluded: $body")
       return
     }
 
     val isPayment = PAYMENT_KEYWORDS.any { body.contains(it) }
     val isReceived = body.contains("さんが") && body.contains("受け取りました")
     if (!isPayment && !isReceived) {
-      Log.d("PaymentNotif", "unmatched: $body")
+      if (isDebuggable()) Log.d("PaymentNotif", "unmatched: $body")
       return
     }
 
@@ -60,7 +60,7 @@ class PaymentNotificationService : NotificationListenerService() {
       .putString("lastSbnKey", sbn.key)
       .apply()
 
-    Log.d("PaymentNotif", "matched: $body")
+    if (isDebuggable()) Log.d("PaymentNotif", "matched: $body")
     showConfirmNotification()
   }
 

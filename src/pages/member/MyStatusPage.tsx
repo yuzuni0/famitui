@@ -1,10 +1,9 @@
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import WheelPicker from '@quidone/react-native-wheel-picker';
 import { signOut } from '../../services/device/auth';
-import { isPermissionGranted, openSettings } from '../../../modules/paymentNotification';
 import { errorMessage } from '../../lib/errors';
 import { formatDateTime, transportModeLabel } from '../../lib/format';
 import type { MainStackParamList } from '../../navigation/RootNavigator';
@@ -102,16 +101,6 @@ export default function MyStatusPage({ familyId, uid }: Props) {
   const [pickerVisible, setPickerVisible] = useState(false);
   const [now, setNow] = useState(Date.now());
   const busyLabelInitialized = useRef(false);
-
-  //決済通知の許可状態
-  const [granted, setGranted] = useState(false);
-
-  //設定画面からの反映
-  useFocusEffect(
-    useCallback(() => {
-      setGranted(isPermissionGranted());
-    }, []),
-  );
 
   //自分のメンバー情報を監視する
   useEffect(() => {
@@ -555,18 +544,6 @@ export default function MyStatusPage({ familyId, uid }: Props) {
             <ActionButton title="予定を解除する" variant="danger" compact onPress={handleClearBusy} disabled={submitting} />
           )}
         </View>
-
-        {!granted && (
-          <>
-            <Text style={styles.sectionHeader}>決済通知</Text>
-            <View style={styles.card}>
-              <Text style={styles.meta}>
-                決済通知の読み取りが許可されていません。購入の自動確認には設定で許可が必要です。
-              </Text>
-              <ActionButton title="設定を開く" compact onPress={openSettings} disabled={false} />
-            </View>
-          </>
-        )}
 
         {signingOut ? (
           <ActivityIndicator color="#06c" style={styles.logout} />

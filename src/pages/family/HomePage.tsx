@@ -211,6 +211,7 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 16,
+    paddingTop: 9,
     gap: 12,
   },
   errorBanner: {

@@ -192,7 +192,18 @@ async function handleMoved(familyId: string, location: GeoPoint): Promise<boolea
       candidates = null;
     }
     const stores = await searchNearbyStores(familyId, location, candidates);
-    await replaceStoreGeofences(stores, radius);
+
+    //指定店舗を新しく登録する
+    const preferredIds = new Set(
+      items
+        .filter(item => item.status !== 'completed' && item.preferredStoreId !== null)
+        .map(item => item.preferredStoreId as string),
+    );
+    const foundIds = new Set(stores.map(store => store.storeId));
+    const preferred = saved
+      .filter(store => preferredIds.has(store.id) && !foundIds.has(store.id))
+      .map(toNearbyStore);
+    await replaceStoreGeofences([...preferred, ...stores].slice(0, MAX_GEOFENCES), radius);
     lastSearchCenter = location;
     persistState();
     cancelRetry();

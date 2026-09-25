@@ -2,6 +2,7 @@ package expo.modules.backgroundlocation
 
 import android.content.Context
 import org.json.JSONArray
+import org.json.JSONException
 import org.json.JSONObject
 
 data class RegisteredStore(
@@ -35,18 +36,22 @@ class StoreStorage(context: Context) {
 
   fun loadStores(): List<RegisteredStore> {
     val raw = prefs.getString(KEY_STORES, null) ?: return emptyList()
-    val array = JSONArray(raw)
-    return (0 until array.length()).map { index ->
-      val json = array.getJSONObject(index)
-      val categories = json.getJSONArray("categories")
-      RegisteredStore(
-        storeId = json.getString("storeId"),
-        storeName = json.getString("storeName"),
-        latitude = json.getDouble("latitude"),
-        longitude = json.getDouble("longitude"),
-        categories = (0 until categories.length()).map { categories.getString(it) },
-        radius = json.getDouble("radius").toFloat(),
-      )
+    return try {
+      val array = JSONArray(raw)
+      (0 until array.length()).map { index ->
+        val json = array.getJSONObject(index)
+        val categories = json.getJSONArray("categories")
+        RegisteredStore(
+          storeId = json.getString("storeId"),
+          storeName = json.getString("storeName"),
+          latitude = json.getDouble("latitude"),
+          longitude = json.getDouble("longitude"),
+          categories = (0 until categories.length()).map { categories.getString(it) },
+          radius = json.getDouble("radius").toFloat(),
+        )
+      }
+    } catch (error: JSONException) {
+      emptyList()
     }
   }
 

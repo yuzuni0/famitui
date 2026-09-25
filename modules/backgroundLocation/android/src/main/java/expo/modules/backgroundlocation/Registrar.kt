@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
+import android.util.Log
 import androidx.core.content.ContextCompat
 import com.google.android.gms.location.ActivityRecognition
 import com.google.android.gms.location.ActivityTransition
@@ -18,6 +19,7 @@ import com.google.android.gms.tasks.Task
 import com.google.android.gms.tasks.Tasks
 
 object Registrar {
+  private const val TAG = "BackgroundLocation"
   private val ACTIVITY_TYPES = listOf(
     DetectedActivity.IN_VEHICLE,
     DetectedActivity.ON_BICYCLE,
@@ -93,7 +95,11 @@ object Registrar {
   }
 
   fun startLocationService(context: Context) {
-    ContextCompat.startForegroundService(context, Intent(context, LocationService::class.java))
+    try {
+      ContextCompat.startForegroundService(context, Intent(context, LocationService::class.java))
+    } catch (error: IllegalStateException) {
+      Log.w(TAG, "位置更新サービスを起動できません", error)
+    }
   }
 
   fun stopLocationService(context: Context) {

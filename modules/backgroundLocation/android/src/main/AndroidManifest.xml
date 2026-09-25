@@ -20,7 +20,7 @@
     <service
       android:name=".LocationService"
       android:exported="false"
-      android:foregroundServiceType="location" />
+      android:foregroundServiceType="location|shortService" />
     <service
       android:name=".HeadlessTaskService"
       android:exported="false"

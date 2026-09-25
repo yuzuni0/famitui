@@ -1,5 +1,6 @@
 import { onCall, HttpsError } from "firebase-functions/https";
-import { FieldValue, Timestamp } from "firebase-admin/firestore";
+import { FieldValue, Timestamp, getFirestore } from "firebase-admin/firestore";
+import { logger } from "firebase-functions/v2";
 import { runItemTransactionFor } from "../lib/itemTransaction";
 import { NotifiedItem, notifyRequesters } from "../lib/notify";
 import {
@@ -26,8 +27,9 @@ export const approveRequest = onCall(async (request) => {
 
   // 品目ごとに承諾する
   for (const itemId of itemIds) {
+    const result: { entry: NotifiedItem | null } = { entry: null };
     try {
-      await runItemTransactionFor(
+      const { assignmentId } = await runItemTransactionFor(
         uid,
         familyId,
         itemId,
@@ -35,13 +37,17 @@ export const approveRequest = onCall(async (request) => {
         async ({ tx, item, member, familyRef, itemRef, assignmentId }) => {
           await approveItem(tx, item, familyRef, itemRef, assignmentId, uid);
           approverName = String(member.displayName ?? "");
-          approved.push({
+          result.entry = {
             itemId,
             itemName: String(item.itemName ?? ""),
             requesterUserId: item.requesterUserId ?? null,
-          });
+          };
         }
       );
+      if (result.entry !== null) {
+        approved.push(result.entry);
+      }
+      await clearMessages(familyId, assignmentId);
     } catch (error) {
       failure = { itemId, error };
       break;
@@ -60,6 +66,26 @@ export const approveRequest = onCall(async (request) => {
 
   return { itemIds: approved.map((entry) => entry.itemId) };
 });
+
+// 新しいチャットを作成する
+async function clearMessages(
+  familyId: string,
+  assignmentId: string
+): Promise<void> {
+  const messagesRef = getFirestore()
+    .collection("families")
+    .doc(familyId)
+    .collection("assignments")
+    .doc(assignmentId)
+    .collection("messages");
+  try {
+    await getFirestore().recursiveDelete(messagesRef);
+  } catch (error) {
+    logger.warn("チャットの削除に失敗しました", {
+      familyId, assignmentId, error,
+    });
+  }
+}
 
 // 1品目を承諾する
 async function approveItem(
