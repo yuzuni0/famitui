@@ -242,7 +242,9 @@ export default function AddMissingModal({ familyId, uid, item, onClose }: Props)
   //店舗の一覧を監視する
   useEffect(() => {
     setStores(null);
-    const unsubscribe = observeStores(familyId, setStores);
+    const unsubscribe = observeStores(familyId, setStores, observeError => {
+      setError(errorMessage(observeError));
+    });
     return unsubscribe;
   }, [familyId]);
 

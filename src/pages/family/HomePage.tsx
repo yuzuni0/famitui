@@ -34,7 +34,9 @@ export default function HomePage({ familyId, uid }: Props) {
   //家族名を監視する
   useEffect(() => {
     setFamily(null);
-    const unsubscribe = observeFamilyDoc(familyId, setFamily);
+    const unsubscribe = observeFamilyDoc(familyId, setFamily, observeError => {
+      setError(errorMessage(observeError));
+    });
     return unsubscribe;
   }, [familyId]);
 
@@ -239,10 +241,6 @@ const styles = StyleSheet.create({
   cardPressed: {
     opacity: 0.7,
   },
-  familyLabel: {
-    fontSize: 12,
-    color: '#6b7280',
-  },
   familyName: {
     fontSize: 22,
     fontWeight: 'bold',
@@ -284,10 +282,6 @@ const styles = StyleSheet.create({
   progressFill: {
     height: '100%',
     backgroundColor: '#06c',
-  },
-  progressText: {
-    fontSize: 12,
-    color: '#6b7280',
   },
   sectionHeader: {
     flexDirection: 'row',

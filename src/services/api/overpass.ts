@@ -128,7 +128,6 @@ export async function fetchNearbyCandidates(center: GeoPoint): Promise<StoreCand
       const startedAt = Date.now();
       try {
         const body = await fetchFromServer(url, query);
-        console.log(`[overpass] ${url} ok ms=${Date.now() - startedAt}`);
         return parseOverpassElements(body);
       } catch (error) {
         console.warn(`[overpass] ${url} failed ms=${Date.now() - startedAt}`, error);

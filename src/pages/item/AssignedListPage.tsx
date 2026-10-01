@@ -243,17 +243,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     gap: 12,
   },
-  emptyIconCircle: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#e8eef5',
-  },
-  emptyIcon: {
-    fontSize: 32,
-  },
   emptyTitle: {
     fontSize: 16,
     fontWeight: '600',

@@ -1,14 +1,13 @@
 import { distanceMeters } from '../lib/geo';
-import type { FamilyDoc, GeoPoint, TransportMode } from '../types/firestore';
+import type { GeoPoint, TransportMode } from '../types/firestore';
 import { GEOFENCE_RADIUS_METERS, IMPORTANT_GEOFENCE_RADIUS_METERS, MAX_GEOFENCES, RELOCATE_DISTANCE_METERS, emitBackgroundEvent, fetchCurrentBackgroundLocation, fetchRegisteredStores, loadMonitorState, onDistanceMoved, onGeofenceEnter, onGeofenceExit, onTransportModeChanged, replaceStoreGeofences, saveMonitorState } from './device/backgroundLocation';
 import type { BackgroundLocationEvent } from '../../modules/backgroundLocation';
 import { getCurrentUid } from './device/auth';
 import { fetchUserDoc } from './firestore/user';
-import { observeFamilyDoc } from './firestore/family';
+import { fetchFamilyDoc } from './firestore/family';
 import { fetchItems, isAssigned, isRequested } from './firestore/item';
 import type { ItemWithId } from './firestore/item';
-import { isBusy, isTransportModeManual, observeMember, updateMemberStatus } from './firestore/member';
-import type { MemberWithId } from './firestore/member';
+import { fetchMember, isBusy, isTransportModeManual, updateMemberStatus } from './firestore/member';
 import { notifyNearbyStore } from './device/notification';
 import { SEARCH_RADIUS_METERS, fetchNearbyCandidates } from './api/overpass';
 import type { StoreCandidate } from './api/overpass';
@@ -79,42 +78,6 @@ function leaveStore(storeId: string): void {
   }
   lastNotifiedTimes.delete(storeId);
   persistState();
-  console.log('[geofence] 退出により再通知の抑制を解除', storeId);
-}
-
-//値を取得し、Promiseを返す
-function readOnce<T>(
-  subscribe: (callback: (value: T) => void, onError: (error: Error) => void) => () => void,
-): Promise<T> {
-  return new Promise((resolve, reject) => {
-    let settled = false;
-    let unsubscribe: (() => void) | null = null;
-
-    const finish = () => {
-      settled = true;
-      unsubscribe?.();
-    };
-
-    unsubscribe = subscribe(
-      value => {
-        if (settled) {
-          return;
-        }
-        finish();
-        resolve(value);
-      },
-      error => {
-        if (settled) {
-          return;
-        }
-        finish();
-        reject(error);
-      },
-    );
-    if (settled) {
-      unsubscribe();
-    }
-  });
 }
 
 //重要な依頼を確認する
@@ -180,7 +143,6 @@ async function handleMoved(familyId: string, location: GeoPoint): Promise<boolea
       .map(entry => toNearbyStore(entry.store));
     if (nearby.length > 0) {
       await replaceStoreGeofences(nearby, radius);
-      console.log(`[geofence] 保存済みの店舗 ${nearby.length} 件で登録`);
     }
 
     //周辺を検索・登録する
@@ -207,13 +169,11 @@ async function handleMoved(familyId: string, location: GeoPoint): Promise<boolea
     lastSearchCenter = location;
     persistState();
     cancelRetry();
-    console.log(`[geofence] 周辺検索の結果 ${stores.length} 件で登録`);
   } catch (error) {
     console.warn('geofenceMonitor: 周辺検索に失敗。保存済みの店舗を維持します', error);
     cancelRetry();
     retryTimer = setTimeout(() => {
       retryTimer = null;
-      console.log('[geofence] 周辺検索を再試行');
       void handleMoved(familyId, location);
     }, SEARCH_RETRY_DELAY_MS);
   } finally {
@@ -236,29 +196,24 @@ function shouldNotify(
   homeLocation: GeoPoint | null,
 ): boolean {
   if (item.status === 'completed') {
-    console.log('[geofence] 完了済みのため対象外', item.itemName);
     return false;
   }
 
   if (!isRequested(item) || isAssigned(item)) {
-    console.log('[geofence] 依頼中で担当未定ではないため対象外', item.itemName);
     return false;
   }
 
   //自分が辞退したものは除く
   if (item.rejectedUserIds.includes(uid)) {
-    console.log('[geofence] 自分が辞退済みのため対象外', item.itemName);
     return false;
   }
 
   //指定店舗がある品目は、その店舗でのみ通知する
   if (item.preferredStoreId !== null) {
     if (item.preferredStoreId !== store.storeId) {
-      console.log('[geofence] 指定店舗と一致しないため対象外', item.itemName);
       return false;
     }
   } else if (!store.categories.includes(item.category)) {
-    console.log('[geofence] カテゴリが一致しないため対象外', item.itemName, item.category);
     return false;
   }
 
@@ -266,21 +221,15 @@ function shouldNotify(
   if (item.maxDistanceMeters !== null && homeLocation !== null) {
     const distance = distanceMeters(homeLocation, store.location);
     if (distance > item.maxDistanceMeters) {
-      console.log(
-        '[geofence] 距離の上限を超えるため対象外',
-        item.itemName,
-        `${Math.round(distance)}m > ${item.maxDistanceMeters}m`,
-      );
       return false;
     }
   }
 
-  console.log('[geofence] 通知対象', item.itemName);
   return true;
 }
 
 //店舗に入ったときの処理
-export async function handleStoreEntered(
+async function handleStoreEntered(
   familyId: string,
   uid: string,
   store: NearbyStore,
@@ -295,30 +244,20 @@ export async function handleStoreEntered(
   const now = Date.now();
   const lastNotified = lastNotifiedTimes.get(store.storeId);
   if (lastNotified !== undefined && now - lastNotified < RENOTIFY_INTERVAL_MS) {
-    console.log('[geofence] 再通知の抑制中', store.storeName);
     return;
   }
 
   try {
     //予定中の制限
-    const member = await readOnce<MemberWithId | null>((callback, onError) =>
-      observeMember(familyId, uid, callback, onError),
-    );
+    const member = await fetchMember(familyId, uid);
     if (member === null || isBusy(member)) {
-      console.log('[geofence] 予定中のため通知しない');
       return;
     }
 
-    const [items, family] = await Promise.all([
-      fetchItems(familyId),
-      readOnce<FamilyDoc | null>((callback, onError) =>
-        observeFamilyDoc(familyId, callback, onError),
-      ),
-    ]);
+    const [items, family] = await Promise.all([fetchItems(familyId), fetchFamilyDoc(familyId)]);
     const homeLocation = family?.homeLocation ?? null;
 
     const targets = items.filter(item => shouldNotify(item, store, uid, homeLocation));
-    console.log('[geofence] 品目', items.length, '件、対象', targets.length, '件');
     if (targets.length === 0) {
       return;
     }
@@ -360,7 +299,6 @@ async function checkStores(familyId: string, uid: string, location: GeoPoint): P
   }
 
   for (const store of entered) {
-    console.log('[geofence] アプリ側の判定で進入', store.storeName);
     await handleStoreEntered(familyId, uid, store);
   }
 }
@@ -372,11 +310,8 @@ async function handleTransportModeChanged(
   mode: TransportMode,
 ): Promise<void> {
   try {
-    const member = await readOnce<MemberWithId | null>((callback, onError) =>
-      observeMember(familyId, uid, callback, onError),
-    );
+    const member = await fetchMember(familyId, uid);
     if (member === null || isTransportModeManual(member)) {
-      console.log('[activity] 手動設定中のため保存しない');
       return;
     }
     await updateMemberStatus(familyId, uid, { transportMode: mode });
@@ -409,7 +344,6 @@ export function startGeofenceMonitor(familyId: string, uid: string): () => void 
     if (!active) {
       return;
     }
-    console.log('[geofence] 位置更新', location.latitude, location.longitude);
     void handleLocation(location);
   });
 

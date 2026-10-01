@@ -79,7 +79,6 @@ export async function reportPurchase(
     'reportPurchase',
     { familyId, itemIds },
   );
-  console.log('[itemActions] reportPurchase 応答', result);
 
   //旧バージョンの Functions が返す応答にも耐えられるよう数値に揃える
   return {

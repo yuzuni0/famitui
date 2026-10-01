@@ -106,7 +106,9 @@ export default function RequestDetailPage({ familyId, uid, itemId, selected }: P
   //購入する店舗の名前を表示する
   useEffect(() => {
     setStores(null);
-    const unsubscribe = observeStores(familyId, setStores);
+    const unsubscribe = observeStores(familyId, setStores, observeError => {
+      setError(errorMessage(observeError));
+    });
     return unsubscribe;
   }, [familyId]);
 

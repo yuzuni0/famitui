@@ -134,14 +134,18 @@ export default function TaskDetailPage({ familyId, uid, itemId }: Props) {
   //購入する店舗の名前を表示するための監視
   useEffect(() => {
     setStores(null);
-    const unsubscribe = observeStores(familyId, setStores);
+    const unsubscribe = observeStores(familyId, setStores, observeError => {
+      setError(errorMessage(observeError));
+    });
     return unsubscribe;
   }, [familyId]);
 
- 
+  //自宅の位置を距離の判定に使う
   useEffect(() => {
     setFamily(null);
-    const unsubscribe = observeFamilyDoc(familyId, setFamily);
+    const unsubscribe = observeFamilyDoc(familyId, setFamily, observeError => {
+      setError(errorMessage(observeError));
+    });
     return unsubscribe;
   }, [familyId]);
 

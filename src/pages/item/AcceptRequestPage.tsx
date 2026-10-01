@@ -15,7 +15,6 @@ import { approveRequest, failedItemMessage } from '../../services/functions/item
 
 type Props = {
   familyId: string;
-  uid: string;
   initialItemIds: string[];
   detected: boolean;
   //詳細画面で受け付けた結果

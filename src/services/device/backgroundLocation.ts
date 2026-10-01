@@ -5,11 +5,8 @@ import type { BackgroundLocationEvent } from '../../../modules/backgroundLocatio
 import type { CategoryId, GeoPoint, TransportMode } from '../../types/firestore';
 import type { NearbyStore } from '../functions/storeActions';
 
-const TEST_DISTANCE_METERS = 3;
-//パソコン甲子園提出時には必ずfalse,にしておく
-const USE_TEST_DISTANCE = false;
-export const RELOCATE_DISTANCE_METERS = USE_TEST_DISTANCE ? TEST_DISTANCE_METERS : 20;
-const LOCATION_UPDATE_DISTANCE_METERS = USE_TEST_DISTANCE ? TEST_DISTANCE_METERS : 5;
+export const RELOCATE_DISTANCE_METERS = 20;
+const LOCATION_UPDATE_DISTANCE_METERS = 5;
 export const MAX_GEOFENCES = 80;
 export const GEOFENCE_RADIUS_METERS = 100;
 //重要な依頼時の半径
@@ -124,7 +121,6 @@ export async function replaceStoreGeofences(stores: NearbyStore[], radius: numbe
     categories: store.categories,
   }));
   await BackgroundLocation.replaceGeofences(targets, radius);
-  console.log(`[geofence] ${targets.length} 件を登録`);
 }
 
 //登録済みの店舗を取得する

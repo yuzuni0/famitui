@@ -5,14 +5,10 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, 
 import WheelPicker from '@quidone/react-native-wheel-picker';
 import { signOut } from '../../services/device/auth';
 import { errorMessage } from '../../lib/errors';
-import { formatDateTime, transportModeLabel } from '../../lib/format';
 import type { MainStackParamList } from '../../navigation/RootNavigator';
-import { handleStoreEntered } from '../../services/geofenceMonitor';
 import { progressToNextLevel, todayJst } from '../../lib/level';
-import { busyUntilTimeFromNow, isBusy, isTransportModeManual, observeMember, updateDisplayName, updateMemberStatus } from '../../services/firestore/member';
+import { busyUntilTimeFromNow, observeMember, updateDisplayName, updateMemberStatus } from '../../services/firestore/member';
 import type { MemberWithId } from '../../services/firestore/member';
-import { observeStores } from '../../services/firestore/store';
-import type { StoreWithId } from '../../services/firestore/store';
 import { updateFcmToken } from '../../services/firestore/member';
 import { DISPLAY_NAME_MAX_LENGTH } from '../../services/firestore/user';
 import { TRANSPORT_MODES } from '../../types/firestore';
@@ -84,7 +80,6 @@ export default function MyStatusPage({ familyId, uid }: Props) {
   const navigation = useNavigation<NativeStackNavigationProp<MainStackParamList>>();
 
   const [member, setMember] = useState<MemberWithId | null>(null);
-  const [stores, setStores] = useState<StoreWithId[] | null>(null);
   const [memberLoaded, setMemberLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -138,7 +133,7 @@ export default function MyStatusPage({ familyId, uid }: Props) {
     try {
       await updateFcmToken(familyId, uid, null);
     } catch (tokenError) {
-      console.warn('[HomePage] updateFcmToken 失敗', tokenError);
+      console.warn('[MyStatusPage] updateFcmToken 失敗', tokenError);
     }
 
     try {
@@ -149,21 +144,6 @@ export default function MyStatusPage({ familyId, uid }: Props) {
       setSigningOut(false);
     }
   }
-
-  //店舗の情報を監視する
-  useEffect(() => {
-    setStores(null);
-
-    const unsubscribe = observeStores(
-      familyId,
-      setStores,
-      observeError => {
-        setError(errorMessage(observeError));
-      },
-    );
-
-    return unsubscribe;
-  }, [familyId]);
 
   //読み込めた時点の状況を反映する
   useEffect(() => {
@@ -334,27 +314,6 @@ export default function MyStatusPage({ familyId, uid }: Props) {
 
     setBusyLabelInput('');
     setSubmitting(false);
-  }
-
-  //foodを扱う店舗への進入を模擬する
-  async function handleSimulateEnter() {
-    const store = stores?.find(entry => entry.categories.includes('food'));
-    if (store === undefined) {
-      setError('food を扱う店舗が stores にありません');
-      return;
-    }
-
-    setError(null);
-    try {
-      await handleStoreEntered(familyId, uid, {
-        storeId: store.id,
-        storeName: store.storeName,
-        location: store.location,
-        categories: store.categories,
-      });
-    } catch (simulateError) {
-      setError(errorMessage(simulateError));
-    }
   }
 
   //読み込み中の表示

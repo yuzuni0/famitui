@@ -1,6 +1,7 @@
 import { createNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import * as Notifications from 'expo-notifications';
+import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, AppState, Image, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaInsetsContext, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -92,6 +93,9 @@ const MainStack = createNativeStackNavigator<MainStackParamList>();
 //ナビゲーターの外から遷移する
 export const navigationRef = createNavigationContainerRef<MainStackParamList>();
 
+SplashScreen.preventAutoHideAsync().catch(() => {});
+SplashScreen.setOptions({ duration: 400, fade: true });
+
 const HEADER_OPTIONS = { headerStyle: { backgroundColor: '#F7F9FC' }, headerShadowVisible: false, headerTintColor: '#111827' } as const;
 
 //判定が終わるまでの間に出す表示
@@ -166,7 +170,6 @@ export default function RootNavigator() {
   //通知用トークンの保存と位置監視
   const familyId = userDoc?.status === 'found' ? userDoc.user.familyId : null;
   useEffect(() => {
-    console.log('[RootNavigator] token effect', { uid, familyId });
     if (uid === null || familyId === null) {
       return;
     }
@@ -267,6 +270,16 @@ export default function RootNavigator() {
       subscription.remove();
     };
   }, [uid, familyId]);
+  
+  const ready = !initializing && (uid === null || (userDoc !== null && userDoc.status !== 'unknown'));
+  useEffect(() => {
+    if (!ready) {
+      return;
+    }
+    SplashScreen.hideAsync().catch(error => {
+      console.warn('[RootNavigator] hideAsync 失敗', error);
+    });
+  }, [ready]);
 
   if (initializing) {
     return <LoadingScreen />;
@@ -342,7 +355,6 @@ export default function RootNavigator() {
             {({ route }) => (
               <AcceptRequestPage
                 familyId={familyId}
-                uid={uid}
                 initialItemIds={route.params.initialItemIds}
                 detected={route.params.detected}
                 selection={route.params.selection}
@@ -401,7 +413,7 @@ export default function RootNavigator() {
           </MainStack.Screen>
           <MainStack.Screen name="Camera" options={{ title: '撮影する' }}>
             {({ route }) => (
-              <CameraPage familyId={familyId} uid={uid} mode={route.params.mode} />
+              <CameraPage mode={route.params.mode} />
             )}
           </MainStack.Screen>
           <MainStack.Screen name="DetectionResult" options={{ title: '判定の結果' }}>

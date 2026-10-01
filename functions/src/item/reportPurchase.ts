@@ -38,6 +38,10 @@ export const reportPurchase = onCall(async (request) => {
 
   // 品目ごとに報告する
   for (const itemId of itemIds) {
+    const result: {
+      scoreDelta: number;
+      entry: (typeof reported)[number] | null;
+    } = { scoreDelta: 0, entry: null };
     try {
       await runItemTransactionFor(
         uid,
@@ -57,15 +61,19 @@ export const reportPurchase = onCall(async (request) => {
 
           previousLevel ??= levelForScore(scoreBefore);
           newLevel = level;
-          addedScore += scoreDelta;
           reporterName = String(member.displayName ?? "");
-          reported.push({
+          result.scoreDelta = scoreDelta;
+          result.entry = {
             itemId,
             itemName: String(item.itemName ?? ""),
             requesterUserId: item.requesterUserId ?? null,
-          });
+          };
         }
       );
+      addedScore += result.scoreDelta;
+      if (result.entry !== null) {
+        reported.push(result.entry);
+      }
     } catch (error) {
       failure = { itemId, error };
       break;

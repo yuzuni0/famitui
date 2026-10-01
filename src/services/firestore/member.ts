@@ -1,4 +1,4 @@
-import { collection, doc, getFirestore, orderBy, query, Timestamp, updateDoc, writeBatch } from '@react-native-firebase/firestore';
+import { collection, doc, getDoc, getFirestore, orderBy, query, Timestamp, updateDoc, writeBatch } from '@react-native-firebase/firestore';
 import { todayJst } from '../../lib/level';
 import type { MemberDoc } from '../../types/firestore';
 import { FAMILIES_COLLECTION, observeCollection, observeDoc } from './observe';
@@ -86,6 +86,12 @@ export function observeMembers(
     callback,
     onError,
   );
+}
+
+//uidを取得する
+export async function fetchMember(familyId: string, uid: string): Promise<MemberWithId | null> {
+  const snapshot = await getDoc(memberDocRef(familyId, uid));
+  return snapshot.exists() ? { id: snapshot.id, ...(snapshot.data() as MemberDoc) } : null;
 }
 
 //特定の1人の変化を監視する

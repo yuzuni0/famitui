@@ -121,7 +121,9 @@ export default function ChatPage({ familyId, uid, assignmentId, itemName }: Prop
   //メッセージの更新を行う
   useEffect(() => {
     setMessages([]);
-    const unsubscribe = observeMessages(familyId, assignmentId, setMessages);
+    const unsubscribe = observeMessages(familyId, assignmentId, setMessages, observeError => {
+      Alert.alert('メッセージを読み込めません', errorMessage(observeError));
+    });
     return unsubscribe;
   }, [familyId, assignmentId]);
 
@@ -133,6 +135,8 @@ export default function ChatPage({ familyId, uid, assignmentId, itemName }: Prop
         next[member.id] = member;
       }
       setMembers(next);
+    }, observeError => {
+      Alert.alert('家族の情報を読み込めません', errorMessage(observeError));
     });
     return unsubscribe;
   }, [familyId]);

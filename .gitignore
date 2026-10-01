@@ -52,3 +52,6 @@ skills-lock.json
 modules/**/android/build/
 functions/android/
 *-debug.log
+
+# Hosting で配布する APK
+public/*.apk

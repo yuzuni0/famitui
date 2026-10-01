@@ -12,8 +12,6 @@ import type { CameraMode } from '../../types/firestore';
 //撮影を行う画面
 
 type Props = {
-  familyId: string;
-  uid: string;
   mode: CameraMode;
 };
 

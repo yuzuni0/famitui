@@ -106,7 +106,9 @@ export default function DetectionResultPage({ familyId, uid, localUri, mode }: P
   //基準が無いのと不足が無いのを区別する
   useEffect(() => {
     setStandard(undefined);
-    const unsubscribe = observeStockStandard(familyId, setStandard);
+    const unsubscribe = observeStockStandard(familyId, setStandard, observeError => {
+      setError(errorMessage(observeError));
+    });
     return unsubscribe;
   }, [familyId]);
 

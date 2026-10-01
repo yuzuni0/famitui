@@ -1,4 +1,4 @@
-import { doc, getFirestore, updateDoc } from '@react-native-firebase/firestore';
+import { doc, getDoc, getFirestore, updateDoc } from '@react-native-firebase/firestore';
 import type { FamilyDoc, GeoPoint } from '../../types/firestore';
 import { FAMILIES_COLLECTION, observeDocData } from './observe';
 //familyIdの読み書き
@@ -18,6 +18,12 @@ export function observeFamilyDoc(
     callback,
     onError,
   );
+}
+
+//familyIdを取得する
+export async function fetchFamilyDoc(familyId: string): Promise<FamilyDoc | null> {
+  const snapshot = await getDoc(familyDocRef(familyId));
+  return snapshot.exists() ? (snapshot.data() as FamilyDoc) : null;
 }
 
 //自宅の位置を更新する

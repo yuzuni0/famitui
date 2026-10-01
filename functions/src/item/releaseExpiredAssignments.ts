@@ -22,11 +22,11 @@ export const releaseExpiredAssignments = onSchedule(
         continue;
       }
 
-      await db.runTransaction(async (tx) => {
+      const done = await db.runTransaction(async (tx) => {
         const assignmentSnapshot = await tx.get(assignmentDoc.ref);
         const assignment = assignmentSnapshot.data();
         if (!assignment || assignment.status !== "active") {
-          return;
+          return false;
         }
 
         const itemRef = familyRef
@@ -45,8 +45,11 @@ export const releaseExpiredAssignments = onSchedule(
             assignmentExpireTime: null,
           });
         }
-        released += 1;
+        return true;
       });
+      if (done) {
+        released += 1;
+      }
     }
 
     logger.info("releaseExpiredAssignments", {
